@@ -1,0 +1,81 @@
+   在C++的算法和函数之间，以类对象作为参数的情况很非常常见的问题，一般情况下传值语义是可行的，但也有很多特殊情况，作为参数的函数对象拷贝代价过高(具有复杂的内部状态)，或者不希望拷贝对象(内部状态不应该被改变)，甚至拷贝是不可行的(noncopyable、单件)。
+
+    boost.ref应用代理模式，引入对象引用的包装器概念解决这个问题。它位于名字空间boost,为了使用ref组件，需要包含头文件<boost/ref.hpp>,即
+
+#include<boost/ref.hpp>
+
+using namespace boost;
+
+示例代码为：
+
+[cpp] view plaincopy
+#include <boost/assign.hpp>  
+#include <boost/ref.hpp>  
+#include <boost/typeof/typeof.hpp>//BOOST_AUTO宏  
+using namespace boost;  
+using namespace boost::assign;  
+  
+//该函数是用来测试typedef void result_type的功能，但此处好像并未使用到它  
+void TestRef1()  
+{  
+    struct square   
+    {  
+        typedef void result_type;//验证改行的意义  
+        void operator()(int &x)  
+        {  
+            x = x * x;  
+        }  
+    };  
+  
+    vector<int> v = (list_of(1),2,3,4,5);  
+    for_each(v.begin(), v.end(), square());  
+  
+    copy(v.begin(),v.end(),ostream_iterator<int>(cout," "));  
+    cout<<endl;  
+}  
+  
+class big_class  
+{  
+private:  
+    int x;  
+public:  
+    big_class():x(0){}  
+    void print()  
+    {  
+        cout<<"big_class "<<++x<<endl;  
+    }  
+};  
+  
+  
+template<typename T>  
+void print(T a)  
+{  
+    for (int i = 0;i < 2;++i)  
+    {  
+        unwrap_ref(a).print();//解包装  
+    }  
+}  
+  
+void main()  
+{  
+    big_class c;  
+    BOOST_AUTO(rw,ref(c));  
+    c.print();//输出1  
+  
+    print(c);//拷贝传参,输出2,3，内部状态不变  
+    print(rw);//引用传参，输出2,3， 内部状态改变  
+    print(c);//拷贝传参，输出4,5，内部状态不变  
+    c.print();//输出4  
+}  
+
+运行结果:
+
+big_class 1
+big_class 2
+big_class 3
+big_class 2
+big_class 3
+big_class 4
+big_class 5
+big_class 4
+请按任意键继续. . .

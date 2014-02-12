@@ -1,0 +1,143 @@
+有时候我们在写服务器端的程序的时候，经常需要用到日志，这几天在做些事情的时候，发现居然还没有我自己经常使用的一个日志类，正好现在又找到一个非常不错的日志类，所以把他记录下来，留待以后直接拿来用就可以了：
+
+Log.h
+
+#if !defined(__TEST_LOG__INCLUDED_)   
+
+#define __TEST_LOG__INCLUDED_   
+  
+#if _MSC_VER > 1000   
+#pragma once   
+#endif // _MSC_VER > 1000   
+  
+#include <direct.h>   
+#include <time.h>   
+#include <stdio.h>   
+  /************************************************************************/  
+/* 负责记录程序日志的日志类*/  
+/************************************************************************/  
+  
+#define LOG_LEVEL_ALL           0   
+#define LOG_LEVEL_IMPORT        1   
+#define LOG_LEVEL_ERROR         2   
+#define LOG_LEVEL_NONE          3   
+  
+class CLog  
+{  
+public:  
+    CLog();  
+    virtual ~CLog();  
+  
+    //分为0、1、2、3四个级别，默认为级别2   
+    //0--级别最低，记录所有日志   
+    //1--级别一般，记录错误日志和重要信息   
+    //2--级别较高，只记录错误及异常日志   
+    //3--级别最高，不记录日志   
+    void SetLogLevel(int nLevel){m_nLevel=nLevel;};  
+    BOOL GetWriteLog(){return m_nLevel;};  
+      
+    int GetCurrentPath(char* chPath);  
+    void Add(const char* fmt, ...);  
+      
+private:  
+    enum {BUFSIZE = 3000};  //工作缓冲区   
+    char    m_tBuf[BUFSIZE];  
+  
+    int     m_nLevel;           //是否记录日志   
+    CRITICAL_SECTION  m_crit;   //设置一个临界区   
+};  
+  
+#endif // !defined(__TEST_LOG__INCLUDED_)  
+ 
+
+Log.cpp:
+
+//   
+//////////////////////////////////////////////////////////////////////   
+  
+#include "stdafx.h"   
+#include "Log.h"   
+  
+//////////////////////////////////////////////////////////////////////   
+// Construction/Destruction   
+//////////////////////////////////////////////////////////////////////   
+  
+CLog::CLog()  
+{  
+    m_nLevel = LOG_LEVEL_ERROR;  
+    ::InitializeCriticalSection(&m_crit);   //初始化临界区   
+}  
+  
+CLog::~CLog()  
+{  
+    ::DeleteCriticalSection(&m_crit);    //释放里临界区   
+}  
+  
+int CLog::GetCurrentPath(char* chPath)  
+{  
+    int ch = '\\';  
+    GetModuleFileNameA(NULL, chPath, MAX_PATH);  
+      
+    char *start = (char *)chPath;  
+      
+    while (*chPath++)                       /* find end of string */  
+        ;  
+    /* search towards front */  
+    while (--chPath != start && *chPath != (char)ch)  
+        ;  
+      
+    if (*chPath == (char)ch)                /* char found ? */  
+        *chPath = '\0';  
+      
+    chPath = (char *)start;  
+      
+    return 0;  
+}  
+  
+void CLog::Add(const char* fmt, ...)  
+{  
+        char chPath[512], chFile[512];  
+        GetCurrentPath(chPath);  
+  
+        strcat(chPath, "\\OCXErrorLog");  
+        _mkdir(chPath);  
+          
+        struct tm *now;  
+        time_t ltime;  
+          
+        time(<ime);  
+        now = localtime(<ime);  
+  
+        char szDate[20], szTime[20];  
+        _strdate(szDate);  
+        _strtime(szTime);  
+  
+        sprintf(chFile, "%s\\Log_%d_%d_%d.txt", chPath  
+            , now->tm_year+1900, now->tm_mon+1, now->tm_mday);  
+  
+/*-----------------------进入临界区(写文件)------------------------------*/   
+        ::EnterCriticalSection(&m_crit);     
+        try        
+        {  
+            va_list argptr;          //分析字符串的格式   
+            va_start(argptr, fmt);  
+            _vsnprintf(m_tBuf, BUFSIZE, fmt, argptr);  
+            va_end(argptr);  
+        }  
+        catch (...)  
+        {  
+            m_tBuf[0] = 0;  
+        }  
+          
+        FILE *fp = fopen(chFile, "a"); //以添加的方式输出到文件   
+        if (fp)  
+        {  
+            fprintf(fp,"[%s %s]\t", szDate, szTime);  
+            fprintf(fp, "%s\n", m_tBuf);          
+            fclose(fp);       
+        }     
+        ::LeaveCriticalSection(&m_crit);    
+/*----------------------------退出临界区---------------------------------*/    
+  
+}  
+ 

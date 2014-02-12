@@ -1,0 +1,207 @@
+摘要：本文简单介绍并比较了用于实现消息反馈的几种常见技术，其中具体介绍了利用C++模板技术来实现类型安全的委托的要点和限制，可以作为理解qt/gtk+等UI库的信号反馈机制的入门文章。 
+
+      
+       　　正文：我写过不少C++程序，写过库也写过客户程序。一般库都会提供一些好用的类供客户程序使用，不少库还可以让客户程序响应库内的某些事件。比如MFC/ATL/VCL提供消息响应，很多ActiveX提供自定义消息响应，甚至是系统底层的中断调用都可以列入这个范畴。然而，正是以上这些“反向”的调用让我觉得很烦恼。
+
+　　继续+多态
+
+　　乍一看是理所当然的选择，库中的类把响应处理函数设置为虚函数，客户程序可以继续这个类并且重载响应函数。以某个Socket类为例，可以提供一个OnRecv函数用来响应网络数据包到达的处理。客户程序只需要重载OnRecv并进行自己的处理就可以了。
+
+strUCt Socket { // base class
+virtual void OnRecv();
+};
+stuct MySocket { // your event-handle class
+virtual void OnRecv() { /* do sth here ... */ }
+}
+　　疑问：很多时候这样做实在很烦，非凡是做小程序的时候，或者需要快速做原型的时候，一眼望去小小的程序一上来就继续了一大堆东西，颇为不爽。只是想着能省事一点，希望能像那些脚本语言一样快速绑定消息响应，而不是以继续开始工作——我已经害怕看到长长的类继续树了，很多时候根本不必要继续整个类；又或者某些类只提供一个接口而不是具体的类又或者需要多重继续，处理都有一定麻烦；最麻烦的莫过于有时候需要改变响应处理，难道继续好几个下来么——这么多虚表也是浪费啊。
+
+　　点评：为了使用Socket就必须继续Socket，这可以说是Socket的设计的问题。假如需要实现类似的功能的话，可以写成如下，虽然和继续 Socket 没有多少本质的差别，不过确实把消息处理类和Socket的实现扯开了。：
+
+struct SocketEventHandler {
+virtual void OnRecv() { /* ... */ }
+virtual void OnSend() { /* ... */ }
+};
+struct Socket {
+void set_handler( SocketEventHandler* h ) { handler_ = h; }
+PRivate:
+SocketEventHandler* handler_;
+};
+struct MyHandler : SocketEventHandler {
+void OnRecv() { ... }
+};
+Socket s;
+MyHandler h;
+s.set_handler( &h );
+　　忽然之间，我感到一阵迷茫，非常渴望一种简单明确的表达方法。丢开继续，我们还有什么把戏？我不禁想起了c时代的回调函数……
+
+　　回调函数(CallBack)
+
+　　非常简单，就是一个函数指针。刚才的OnRecv可以写成这样
+
+struct Socket {
+void OnRecv() { if(OnRecvHandle!=NULL) OnRecvHandle(); }
+void (*OnRecvHandle) ();
+}; 
+　　客户程序只需要编写一个MyOnRecv函数，并且赋值给OnRecvHandle就可以了
+
+void MyOnRecv(); // your event-handle function
+Socket foo;
+foo.OnRecvHandle = MyOnRecv;
+　　疑问：非常简单，不需要继续类就可以处理，而且随时可以替换不同的处理函数。其实多态的本质也是函数指针，只不过多态是用vtable统一治理函数指针。回调函数要非凡注重函数指针是否为空的问题，因此最好外面在包装一层判定过程。回调函数最大问题在于类型不安全，显式指针这东西……不说也罢……翻了一下智能指针和模版，我发现了一根稻草…… 委托(Delegation)
+
+　　委托是什么呢？这个名词似乎是时尚的代名词，我仿佛看到学java/c#的兄弟们在嘲笑我们的落后……其实，property不也可以算是一种委托吗？说白了不就是智能指针么？
+
+     
+
+       　　我觉得委托最本质的是提供一种类型安全的动态消息响应转移机制。
+
+　　以前，我对委托一无所知，我觉得无非就是一个类型安全的智能指针，而所谓的Multi-Cast Delegation无非就是一个智能指针数祖……是不是还有Any-Cast Delegation呢？我不知道，也许有吧，无非就是智能指针数祖+随机数发生器……
+
+　　但是，实际上并不是那么简单。你可以把我刚才说的函数指针封装一下弄一个类封装起来，不过，这直接导致某个消息的响应只能是固定死的函数指针类型，甚至不能是可爱的Functor或者是某个类的成员函数。你可能会跟我抬杠说这怎么可能，不是可以用template实现么？我们来看一个例子
+
+　　假设某个委托类 Dummy_Delegation 拥有一个成员函数用来连接处理函数 template＜class T＞ void Dummy_Delegation::Connect(T _F); 没错，_F可以不一定函数指针，也可以是Functor，我们利用_F()来呼叫响应函数，一切看起来是多么美好——但是，很不幸，这个_F无法保存下来供消息产生的时候呼叫……
+
+　　一切都因为这个该死的template＜class T＞，你无法在Dummy_Delegation内定义一个T类型的变量或者指针来保存_F。退一万步说，你把T作为整个Dummy的模版，还是避免不了在模版实例化的时候定死类型。于是，整个Delegation的通用性大打折扣……
+
+　　实际上，我们希望有这么一种Delegation，他可以把消息响应动态绑定到任何一个类的成员函数上只要函数类型一致。注重，这里说的是任何一个类。这就要求我们屏蔽信号发生器和响应类之间的耦合关系，即，让他们相互都不知道对方是谁甚至不知道对方的类型信息。
+
+　　这个方法可行么？Yes！ 
+
+　　桥式委托(Bridge Delegation) ---- 利用泛型+多态来实现 
+
+　　请答应我杜撰一个名词：桥式委托(Bridge Delegation)
+
+　　实现这么一个东西真的很有意思，其实，像gtk+/qt很多需要"信号/反馈"(signal/slot)的系统都是这么实现的。
+
+　　说到GP和Template，那真的可以算是百家争鸣了，就像boost和loki还在争夺新的C++标准智能指针的地位打得不可开交。而Functor这个东西有是很多GP algo的基础，比如sort/for_each等等。
+
+　　整个桥式委托的结构如下图：
+
+Signal ＜＞--------＞* Interface
+^
+
+Implementation＜Receiver＞ -------------＞ Receiver
+
+　　我们搭建了一个Interface/Implementation的桥用来连接Singal和Receiver，这样就可以有效隔开双方的直接耦合。用之前我们的Socket类来演示如下：
+
+struct Socket {
+Signal OnRecv;
+};
+　　一个Receiver可以是一个function比如 void OnRecv1() 也可以是一个Functor：
+
+struct OnRecv2_t {
+void Operator() ();
+} OnRecv2;
+　　我们可以这样使用这个桥式委托
+
+Socket x;
+x.OnRecv.ConnectSlot(OnRecv1); //或者 x.OnRecv.ConnectSlot(OnRecv2()); 
+　　当消息产生调用 x.OnRecv()的时候，用户指定的OnRecv1或者OnRecv2就会响应。
+
+　　我们来看看如何实现这个桥：首先是一个抽象类
+
+struct DelegationInterface {
+virtual ~DelegationInterface() {};
+virtual void Action() = 0;
+}; 
+　　然后才是模版类Impl：
+
+template＜class T＞
+struct DelegationImpl : public DelegationInterface {
+T _FO;
+DelegationImpl(T _S) :_FO(_S) { }
+virtual void Action() { _FO(); }
+}; 
+　　注重我们上面的图示，这个DelegationImpl类是跟Receiver相关联的，也就是说这个Impl类知道所有的Receiver细节，于是他可以从容地调用Receiver()。再次留意这个继续关系，对了，一个virutal的Action函数！利用多态性质，我们可以根据Receiver来实例化DelegationImpl类，却可以利用提供一致的访问Action的Interface，这就是整座桥的秘密所在——利用多态下层隔离细节！
+
+　　再看看我们的Signal类：
+
+struct Signal {
+DelegationInterface* _PI;
+
+Signal() :_PI(NULL) {}
+~Signal() { delete _PI; }
+
+void operator()() { if(_PI) _PI-＞Action(); }
+template＜class T＞ void ConnectSlot(T Slot) {
+delete _PI; _PI = new DelegationImpl＜T＞(Slot);
+}
+};
+　　显然，Signal类利用了 DelegationInterface* 指针_PI来呼叫响应函数。而完成这一切连接操作的正是这个奇妙的ConnectSlot的函数。对了！上次讨论模版函数的时候就说了这个T类型无法保存，但是这里用桥避开了这个问题。利用模版函数的T做为DelegationImpl的实例化参数，一切就这么简单地解决了~
+
+　　你也许可能会抗议，认为我绕了一大圈又绕回了一开始我烦恼的继续/多态上面来了。呵呵。其实，你有没有发现，我们这个Singal/Bridge Delegation/Receive的体系是固定的一套东西，你在实际使用中并不需要自己去继续去处理重载，你只需要好好地Connect到正确的Slot就可以了。这也可以算是一种局部隐含的继续吧。
+
+　　接下来我们要讨论一下这个桥式委托的性能消耗以及扩展和局限性问题 桥式委托的进一步研究
+
+　　看过上面的桥式委托之后，可能会有点怀疑他的性能，需要一个interface指针一个functor类/函数指针，调用的时候需要一次查vtable，然后再一次做operator()调用。 
+      
+       其实，这些消耗都不算很大的，整个桥式委托的类结构是简单的，相对于前面说的继续整个类之类的做法开销还是比较小的，而且又比函数指针通用而且类型安全。最重要的是，刚才的Signal可以方便地改写为Multi-Cast Delegation即一个信号引发多个响应——把Singal内部的DelegationInterface*指针改为一个指针队列就可以了;-)
+
+　　不过，我们刚才实现的桥式委托只能接收函数指针和functor，不能接收另外一个类的成员函数，有时候这是非常有用的动作。比如设置一个按钮Button的OnClick事件的响应为一个MsgBox的Show方法。当然，MsgBox还有其他非常多的方法，这样就可以不用局限于把MsgBox当成一个functor了。
+
+　　我们要改写刚才的整个桥来实现这个功能，在这里需要你对指向成员函数得指针有所了解。
+
+// 新版的桥式委托，可以接收类的成员函数作为响应
+struct DelegationInterface { 
+virtual ~DelegationInterface() {};
+virtual void Run() = 0;
+};
+
+template＜class T＞
+struct DelegationImpl : public DelegationInterface {
+typedef void (T::* _pF_t)(); // 指向类T成员函数的指针类型
+
+DelegationImpl(T* _PP, _pF_t pF) :_P(_PP), _PF(pF) {}
+virtual void Run() {
+if(_P) { (_P-＞*_PF)(); } // 成员函数调用，很别扭的写法(_P-＞*_PF)();
+}
+
+T* _P; // Receiver类
+_pF_t _PF; // 指向Receiver类的某个成员函数
+};
+struct Signal
+{
+DelegationInterface* _PI;
+Signal() :_PI(NULL) {}
+void operator() () { if(_PI) _PI-＞Run(); }
+
+// 新的ConnectSlot需要指定一个类以及这个类的某个成员函数
+template＜class T＞
+void ConnectSlot(T& recv, void (T::* pF)()) { // pF这个参数真够别扭的
+_PI = new DelegationImpl＜T＞(&recv, pF);
+}
+};
+　　注重：ConnectSlot方法的pF参数类型非常复杂，也可以简化如下，即把这个类型检测推到DelegationImpl类去完成，而不在Connect这里进行么？编译器可以正确识别。对于模板来说，很多复杂的参数类型都可以用一个简单的类型代替，不用关心细节，就象上面用一个F代替void (T::*)()。有时候能改善可读性，有时候象反。
+
+template＜class T, class F＞
+void ConnectSlot( T& recv, F pF ) {
+PI_ = new DelegationImpl＜T＞(&recv,pF);
+}
+　　这个新版怎么用呢，很简单的。比如你的MsgBox类有一个成员函数Show，你可以把这个作为响应函数：
+
+MsgBox box;
+Socket x; // Socket还跟旧的版本一样
+x.OnRecv.ConnectSlot(box, &MsgBox::Show);
+　　注重上面这里引用成员函数指针的写法，一定不能写成box.Show，呵呵，希望你还记得成员函数是属于类公共的东西，不是某个实例的私有产品。大家不妨进一步动一下脑筋，把新版的Signal和旧版的Signal结合一下，你就可以获得一个功能超强的Delegation系统了。
+
+　　点评：用signal的办法确实可以方便地动态替换处理函数，不过这是以每个可能被处理的消息都要在每个对象中占用一个 signal 的空间为代价的。而且，需要动态改变处理函数的应用我已经不记得什么时候见过了。即使有，也可以通过在override的virtual函数里自己处理实现，虽说麻烦，但也是可能的。此外，以上代码并不够规范，下划线加大写字母开头的标识符是保留给语言的实现用的。
+
+　　结论
+
+　　我们关于桥式委托的讨论接近尾声了，大家也许已经发现了一个巨大的问题：上面的桥式委托无法给相应操作传递参数！！！是的，这是一个巨大的矛盾——你必须自己实现带一个参数的桥、自己实现带2个参数的桥……就像stl的functor一样，你无法做到参数通用处理，必须区分unary_functor、binary_functor……你不得不这么做：
+
+template＜class P1＞
+struct DelegationInterface { virtual void Run(P1 param) = 0; };
+template＜class T, class P1＞
+struct DelegationImpl : public DelegationInterface＜P1＞ {
+......
+}
+template＜class P1＞
+struct Signal {
+DelegationInterface＜P1＞ *_PI;
+......
+}
+　　好惨！ 要自己写这么多桥啊？C++语法这么不给面子……当然了，你可以绕路来实现，比如用一个通用的打包参数来包装多个参数，用宏定义来处理各种情况，当然也可以用预处理来实现——我这里要说的，同情一下QT吧，不要整天抱怨他的signal/slot体系需要预处理是在扩展语言——设身处地地想一想，C++提供给我们的就这有这些了，一个小小的参数是我们这些signal/slot抹不去的伤痛。
+
+
+　　幸运的是，在C++标准委员会不断的努力之下，这些情况开始有所改善。boost库之中的signal库可以直接支持可变参数的委托；同时，越来越多的元语言技术也引入了C++之中。虽然目前支持这些新特性的编译器还比较少，不过这已经是非常巨大的进步了，让我们期待吧……

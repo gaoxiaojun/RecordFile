@@ -1,0 +1,136 @@
+1 error C2065: 'xxx' : undeclared identifier   102012136
+xxx标识符没定义。标识符可能是变量名，函数名等等。
+注意检查拼写，注意大小写。注意小写字母l和数字1的区别。
+检查变量的定义和使用是否一致。
+变量定义语句：在函数最前面，以变量类型开始，以分号分隔的几个变量名，如int a, b; 注意一个变量定义语句只能写一个变量类型。
+
+2 error C2146: syntax error : missing ';' before identifier 'xxx'
+语句末尾缺少分号，一般是错误定位所在行的上一行。
+
+3 error LNK2001: unresolved external symbol _main
+没有main函数。检查拼写，看是否把main写成了mian。
+
+4 fatal error C1021: invalid preprocessor command 'includ'
+预处理指令拼写错误。
+
+5 fatal error C1083: Cannot open include file: 'stio.h': No such file or directory
+包含文件名写错了。文件名中间不能有空格。
+
+6 error C2001: newline in constant
+检查是否漏了双引号，双引号是否配对，是否把双引号"写成了单引号'。
+
+7 程序运行弹出非法操作的对话框。
+检查是否有scanf漏掉&符号的问题。
+
+8 编译时没错，链接有错：
+error LNK2005: _main already defined in a.obj
+fatal error LNK1169: one or more multiply defined symbols found
+一般是在一个程序里面有多个源文件都包含main函数。
+在运行新的程序之前把原有的源文件从fileview里删掉。
+
+9 fatal error C1004: unexpected end of file found 或 莫名其妙的出现一大堆编译错误。
+检查花括号是否匹配，是否两两配对，是否漏掉了左花括号{或右花括号}。
+
+10 error C2018: unknown character '0xa3'
+一般是出现了中文字符。如双绰号"写成“或”，逗号,写成了，圆括号()写成（）等等。
+
+11 正常的、不属于注释的程序代码显示为绿色。
+编译出现一大堆莫名其妙的错误。
+或错误信息：fatal error C1071: unexpected end of file found in comment
+检查是否注释符号不匹配。注释是以结束，*号和/中间没有空格。
+
+12 error C2143: syntax error : missing ')' before '!'
+   是否把!=写成了! =，即中间多了个空格。
+
+13 error C2059: syntax error : '=' 或 error C2059: syntax error : '>'
+运算符写错，一般是在双字符运算符中间多写了空格，或两个字符前后颠倒，如= =，=>。
+
+14 工具栏上的编译按钮显示为灰色，无法编译。
+看文件扩展名是否正确，应该为.c。若不是（如扩展名是.txt），则从菜单File选Save As(另存为)，另存为一个.c文件。
+
+15 return0: return和0中间有个空格，否则就连在一起成为一个标识符了。
+
+16 链接错误 LINK : fatal error LNK1104: cannot open file "Release/1.exe"
+程序的上次运行没有关闭，关掉运行窗口再重新链接。
+因为链接成功后要写可执行文件(.exe)，而可执行文件正在运行时是不可写的
+
+17.unexpected end of file found in comment
+
+ 
+
+那编译器当然认为你下面的都是注释咯，而在注释中你的文件到末尾了，所以是错。注释要成对才行！  
+
+ 
+
+
+ 
+
+检测错误的方法和原则：
+拖动左下方滚动条，到最上边，从第一条错误开始检查。
+双击错误信息行，使光标定位到出错的行。
+错误不一定由定位的行引起，有可能是它上面一行，比如missing ';' before xxx
+修改完1个错误后，重新编译，有可能后续的错误就消失了。这是因为一处错误可能引起多条出错信息。
+警告(warning)不影响编译，可以暂时不管。当然严格来说，警告也可能隐含着问题，最好也全部改正。
+良好的排版层次结构（缩进和对齐）有助于发现程序中的错误。
+
+1 error C2065: 'xxx' : undeclared identifier
+xxx标识符没定义。标识符可能是变量名，函数名等等。
+注意检查拼写，注意大小写。注意小写字母l和数字1的区别。
+检查变量的定义和使用是否一致。
+变量定义语句：在函数最前面，以变量类型开始，以分号分隔的几个变量名，如int a, b; 注意一个变量定义语句只能写一个变量类型。
+
+2 error C2146: syntax error : missing ';' before identifier 'xxx'
+语句末尾缺少分号，一般是错误定位所在行的上一行。
+
+3 error LNK2001: unresolved external symbol _main
+没有main函数。检查拼写，看是否把main写成了mian。
+
+4 fatal error C1021: invalid preprocessor command 'includ'
+预处理指令拼写错误。
+
+5 fatal error C1083: Cannot open include file: 'stio.h': No such file or directory
+包含文件名写错了。文件名中间不能有空格。
+
+6 error C2001: newline in constant
+检查是否漏了双引号，双引号是否配对，是否把双引号"写成了单引号'。
+
+7 程序运行弹出非法操作的对话框。
+检查是否有scanf漏掉&符号的问题。
+
+8 编译时没错，链接有错：
+error LNK2005: _main already defined in a.obj
+fatal error LNK1169: one or more multiply defined symbols found
+一般是在一个程序里面有多个源文件都包含main函数。
+在运行新的程序之前把原有的源文件从fileview里删掉。
+
+9 fatal error C1004: unexpected end of file found 或 莫名其妙的出现一大堆编译错误。
+检查花括号是否匹配，是否两两配对，是否漏掉了左花括号{或右花括号}。
+
+10 error C2018: unknown character '0xa3'
+一般是出现了中文字符。如双绰号"写成“或”，逗号,写成了，圆括号()写成（）等等。
+
+11 正常的、不属于注释的程序代码显示为绿色。
+编译出现一大堆莫名其妙的错误。
+或错误信息：fatal error C1071: unexpected end of file found in comment
+检查是否注释符号不匹配。注释是以/*开始，以*/结束，*号和/中间没有空格。
+
+12 error C2143: syntax error : missing ')' before '!'
+   是否把!=写成了! =，即中间多了个空格。
+
+13 error C2059: syntax error : '=' 或 error C2059: syntax error : '>'
+运算符写错，一般是在双字符运算符中间多写了空格，或两个字符前后颠倒，如= =，=>。
+
+14 工具栏上的编译按钮显示为灰色，无法编译。
+看文件扩展名是否正确，应该为.c。若不是（如扩展名是.txt），则从菜单File选Save As(另存为)，另存为一个.c文件。
+
+15 return0: return和0中间有个空格，否则就连在一起成为一个标识符了。
+
+16 链接错误 LINK : fatal error LNK1104: cannot open file "Release/1.exe"
+程序的上次运行没有关闭，关掉运行窗口再重新链接。
+因为链接成功后要写可执行文件(.exe)，而可执行文件正在运行时是不可写的。
+ 
+
+ 
+
+
+

@@ -1,0 +1,185 @@
+关于c++ friend 关键字的疑问,c++英雄们请进...  
+Visual Studio Development 论坛  >  Visual C++
+问题
+
+
+0
+登录进行投票
+我一直没搞明白这个关键字，下面是我所知道的几种用法:
+
+class B;
+class A {
+ int m;
+public:
+ friend void print(A& a); // 第一种用法.
+ void outputB(B* b) 
+ {
+ std::cout << b->m << std::endl;
+ }
+};
+
+void print(A& a)
+{
+ std::cout << m << std::endl;
+}
+
+class B {
+ int m;
+ friend class A; // 第二种用法. 
+};
+
+
+但是我一直不明白在boost.asio中的另一种用法.代码如下(完整代码参见:http://www.boost.org/doc/libs/1_43_0/doc/html/boost_asio/example/allocation/server.cpp):
+
+template <typename Handler>
+class custom_alloc_handler
+{
+public:
+ custom_alloc_handler(handler_allocator& a, Handler h)
+ : allocator_(a),
+ handler_(h)
+ {
+ }
+
+ template <typename Arg1>
+ void operator()(Arg1 arg1)
+ {
+ handler_(arg1);
+ }
+
+ template <typename Arg1, typename Arg2>
+ void operator()(Arg1 arg1, Arg2 arg2)
+ {
+ handler_(arg1, arg2);
+ }
+ // @1 第一处.
+ friend void* asio_handler_allocate(std::size_t size,
+ custom_alloc_handler<Handler>* this_handler)
+ {
+ return this_handler->allocator_.allocate(size);
+ }
+ // @2 第二处.
+ friend void asio_handler_deallocate(void* pointer, std::size_t /*size*/,
+ custom_alloc_handler<Handler>* this_handler)
+ {
+ this_handler->allocator_.deallocate(pointer);
+ }
+
+private:
+ handler_allocator& allocator_;
+ Handler handler_;
+};
+上面的"第一处"和"第二处"的这种用法我一直没能理解,也没有针对此用法专门的讲解.
+
+这种方式就和下面代码一样,这就是我不能理解这样使用firend关键字的作用的用法!!!
+
+class A {
+ friend void print()
+ {
+  // ...
+ }
+};
+更另外奇怪的是,上面代码中的asio_handler_allocate和asio_handler_deallocate函数,居然在boost.asio中直接以函数方式调用.代码如下:
+
+namespace boost_asio_handler_alloc_helpers {
+inline void* allocate(std::size_t s, Handler& h)
+{
+#if BOOST_WORKAROUND(__BORLANDC__, BOOST_TESTED_AT(0x564)) \
+ || BOOST_WORKAROUND(__GNUC__, < 3)
+ return ::operator new(s);
+#else
+ using namespace boost::asio;
+ return asio_handler_allocate(s, boost::addressof(h)); //@ 此处调用.
+#endif
+}
+//...
+实在不能理解,很是郁闷,还望大侠指点.
+
+2010年7月11日 15:04
+回复 | 引用 |
+
+Jack.arain计算机编程.145 分数
+答案
+
+
+0
+登录进行投票
+friend修饰的是这个类的有元函数，而非这个类的成员函数，上面的例子只是把有元函数的实现写在了类里而已。实际还是作用域外的函数。
+麻烦把正确答案设为解答。
+已标记为答案 Jack.arain 2010年7月12日 7:27
+2010年7月12日 2:35
+回复 | 引用 |
+
+SplendourG (MVP) 9,450 分数
+全部回复
+
+
+0
+登录进行投票
+friend修饰的是这个类的有元函数，而非这个类的成员函数，上面的例子只是把有元函数的实现写在了类里而已。实际还是作用域外的函数。
+麻烦把正确答案设为解答。
+已标记为答案 Jack.arain 2010年7月12日 7:27
+2010年7月12日 2:35
+回复 | 引用 |
+
+SplendourG (MVP) 9,450 分数
+ 
+
+0
+登录进行投票
+昨晚睡了一觉,今天早上突然想起自己理解错在哪里了,我太纠结于书本概念了...
+
+你说的没错.呵呵,我开始也是这样想的,但是我写了一个小测试,失败了.是这样写的:
+
+ 
+
+class Tester
+{
+	int a;
+public:
+	friend void print(Tester* pTester)
+	{
+		std::cout << pTester->a << std::endl;
+	}
+};
+// 其实只要在这里声名一下这个print函数就行了...如:void print(Tester* pTester);
+// 开始使用print函数.
+int main()
+{
+  Tester t;
+  print(&t); // 然后这里老报错,于是我放弃了,以为友元函数不能在类里面实现.
+}
+ 
+
+其实,我一开始的想法并没有错,验证的时候只有一步之差,就是忘记在作用域外声明这个print函数.
+
+然后就走向了一条不归路, 一直在钻friend关键字功能的牛角,以为它还有什么其它功能...
+
+外另,我在测试过程中,还发现了一些奇怪的规则,那就是如果这个友员函数的参数是类本身的类型,那么就可以直接在类外引用,而不需要类域声名这个友员函数,如:
+
+class Tester
+{
+	int a;
+public:
+	friend void print(Tester* pTester)
+	{
+		std::cout << pTester->a << std::endl;
+	}
+
+	friend void test()
+	{
+		std::cout << "helo" << std::endl;
+	}
+
+};
+
+// void print(Tester* pTester); 无需声名,就可以引用.不知道这又是什么规则...
+void test(); // 此处必须声名,否则会报错:error C3767: “test”: 候选函数不可访问.
+
+int main()
+{
+  Tester ts;
+  print(&ts);
+  test();
+}
+唉,不得不说c++太千变万化了,有时候把人搞糊涂真的很容易.

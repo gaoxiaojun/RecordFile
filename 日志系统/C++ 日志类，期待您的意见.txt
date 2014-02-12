@@ -1,0 +1,320 @@
+ 前一个项目中，当时遇到日志的问题，因为时间紧迫，用了开源社区的glog。但本人对开源的东西又或者说不是自己写的东西的总有点不放心，也可以说是心理有点疾病吧。于是今天就趁着闲下来，自己写了个C++的日志类，机制是仿照自己之前写的C#log类。
+       日志类所要解决的问题：
+       1. 自检查目录以及文件的存在性，如果不存在，则创建
+       2. 多线程冲突问题
+       3. 写日志的功能（最根本的需求）
+       本文中采用的思路为增加自定义缓冲区与冲突锁以解决线程间冲突问题，采用后台线程负责单独写操作，采用单例以解决文件访问冲突问题。至于目录以及文件的存在性问题，这些为基本API函数调用而已。
+        故而定义的类结构如下：  
+
+
+  1 #include "MyFile.h"
+  2 #include <queue>
+  3 #include <process.h>
+  4 #include "WTypes.h"
+  5 #include <stdio.h>
+  6 #include <tchar.h>
+  7 #include "DType.h"
+  8 #include "fstream"
+  9 #include "iostream"
+ 10 #include <map>
+ 11 #include <string>
+ 12 #include <io.h> 
+ 13 #include <atlconv.h>
+ 14 
+ 15 using namespace std;
+ 16 
+ 17 // 日志类
+ 18 // 功能：
+ 19 //        写日志，面对多线程
+ 20 // 思路：
+ 21 //      创建自身缓冲区，缓冲所有待写数据
+ 22 //        单独线程负责实际写入操作
+ 23 //      对上提供统一的写入接口
+ 24 // 注意：
+ 25 //        单例模型
+ 26 class CMyLog 
+ 27 {
+ 28 private:
+ 29     static CMyLog* m_instance;
+ 30 
+ 31 private:
+ 32     // 私有构造函数
+ 33     CMyLog()
+ 34     {
+ 35         InitializeCriticalSection(&this->m_csLock);
+ 36         this->m_hThread = INVALID_HANDLE_VALUE;
+ 37         this->m_hThreadEventExit = INVALID_HANDLE_VALUE;
+ 38     }
+ 39 public:
+ 40     ~CMyLog()
+ 41     {
+ 42         DeleteCriticalSection(&m_csLock);
+ 43     }
+ 44 public: 
+ 45      static CMyLog* GetInstance();
+ 46 
+ 47 
+ 48 private:
+ 49     HANDLE                    m_hThread;                        // 写线程
+ 50     HANDLE                    m_hThreadEventExit;                // 线程退出事件，用于主线程通知子线程退出
+ 51     UINT                    m_hThreadID;                    // 写线程ID
+ 52     CRITICAL_SECTION        m_csLock;                        // 互斥锁，用于多线程写入冲突解决
+ 53     queue<string>            m_strText;                        // 写入缓冲区
+ 54     ofstream                m_streamWriter;                    // 写入流
+ 55     string                    m_fileFullName;                    // 文件全路径名
+ 56 protected:
+ 57     // 创建工作线程
+ 58     void CreateWorkThread();
+ 59 
+ 60     // 工作线程
+ 61     static UINT    WINAPI WriteThreadProc (LPVOID pParam);
+ 62 
+ 63     // 工作线执行体
+ 64     void RunWritting();
+ 65 
+ 66     // 检查目录是否存在，如果不存在则创建其
+ 67     void FolderCheck();
+ 68 
+ 69 public: 
+ 70 
+ 71     // 作用:
+ 72     //        准备工作，负责打开文件，准备好输出流，启动写入线程
+ 73     // 参数:
+ 74     // 返回:
+ 75     void GetReady();
+ 76 
+ 77     // 作用:
+ 78     //        写入数据
+ 79     // 参数:
+ 80     //        __in string        strMessage        信息
+ 81     // 返回:
+ 82     void Write(string strMessage);
+ 83 
+ 84     // 作用:
+ 85     //    关闭写入流，释放相关资源
+ 86     // 参数:
+ 87     // 返回:
+ 88     void Close();
+ 89 
+ 90     // 作用:
+ 91     //     释放实例
+ 92     // 参数:
+ 93     // 返回:
+ 94     static void Dispose()
+ 95     {
+ 96         delete m_instance;
+ 97     }
+ 98 
+ 99     // 作用：
+100     //        设置文件全路径名
+101     // 参数:
+102     //        __in  string            pstrName        文件全路径名   
+103     // 返回:
+104     void SetFullName(string pstrName);
+105 
+106     // 作用：
+107     //        获取文件全路径名
+108     // 参数:  
+109     // 返回:
+110     //      string 文件全路径名
+111     // 异常:
+112     string GetFullName();
+113 
+114     // 作用：
+115     //        获取文件路径     
+116     // 返回:
+117     //     int 文件全路径名长度 ERROR_FUNC_EXECU表示函数执行失败，通过GetLastError获取详细错误代码
+118     string GetFilePath();
+119 
+120     // 作用：
+121     //        设置文件全路径名
+122     // 参数:    
+123     // 返回:
+124     //     int 文件全路径名长度
+125     string GetFileName();
+126 
+127 };
+
+        日志类的方法实现如下：
+
+
+  1 #include "MyLog.h"
+  2 #include <time.h>
+  3 #include <direct.h>
+  4 #include <shlobj.h> 
+  5 
+  6 CMyLog* CMyLog::m_instance;
+  7 
+  8 // 公共访问点
+  9 CMyLog* CMyLog::GetInstance()
+ 10 {  
+ 11     if (m_instance == NULL)
+ 12         m_instance = new CMyLog;
+ 13     return m_instance;
+ 14 }
+ 15 
+ 16  //创建工作线程
+ 17  void CMyLog::CreateWorkThread()
+ 18  {
+ 19       m_hThreadEventExit = CreateEvent(NULL, TRUE, FALSE, NULL);
+ 20       m_hThread = (HANDLE)_beginthreadex(NULL, 0, WriteThreadProc, this, 0, &m_hThreadID);
+ 21  }
+ 22 
+ 23 // 工作线程
+ 24  UINT WINAPI CMyLog::WriteThreadProc(LPVOID pParam)
+ 25  {
+ 26      CMyLog* pThis = reinterpret_cast<CMyLog*>( pParam );
+ 27      pThis->RunWritting();
+ 28      return 1L;
+ 29  }
+ 30 
+ 31 // 工作线执行体
+ 32  void CMyLog::RunWritting()
+ 33  {
+ 34      while(true)
+ 35      {
+ 36          if (m_strText.size() == 0)
+ 37              Sleep(5000);
+ 38          else
+ 39          {
+ 40             time_t t = time(0);
+ 41             char tmp[64];
+ 42             ZeroMemory(tmp, 0);
+ 43             strftime( tmp, sizeof(tmp), "%Y/%m/%d %X",localtime(&t));
+ 44 
+ 45             m_streamWriter<<tmp<<"  "<<m_strText.back()<<"\n";
+ 46              m_strText.pop();
+ 47          }
+ 48          UINT eventIdx = WaitForSingleObject(m_hThreadEventExit,200);
+ 49          if (eventIdx -WAIT_OBJECT_0 == 0)
+ 50          {
+ 51              // 线程退出收尾工作，将手头任务全部写完
+ 52              while (m_strText.size() > 0)
+ 53              {
+ 54                 time_t t = time(0);
+ 55                 char tmp[64];
+ 56                 ZeroMemory(tmp, 0);
+ 57                 strftime( tmp, sizeof(tmp), "%Y/%m/%d %X",localtime(&t));
+ 58 
+ 59                 m_streamWriter<<tmp<<"  "<<m_strText.back()<<"\n";
+ 60                  m_strText.pop();
+ 61              }
+ 62              m_streamWriter.flush();
+ 63              return;
+ 64          }
+ 65      }
+ 66 }
+ 67 
+ 68 // 就绪工作
+ 69 void CMyLog::GetReady()
+ 70 {
+ 71     FolderCheck();
+ 72      m_streamWriter.open(m_fileFullName, fstream::out | fstream::app);
+ 73      CreateWorkThread();
+ 74 }
+ 75 
+ 76 // 检查目录，如果不存在则创建
+ 77 void CMyLog::FolderCheck()
+ 78 {
+ 79     string dir = GetFilePath();
+ 80     if(_access(dir.c_str(), 0) != -1)
+ 81         return;
+ 82     dir = dir + "\\";
+ 83     UINT ilen = MultiByteToWideChar (CP_ACP, 0, dir.c_str(), -1, NULL, 0);
+ 84     wstring wdir(dir.begin(), dir.end()); 
+ 85     int re = SHCreateDirectoryEx(NULL,wdir.c_str(),NULL);
+ 86 }
+ 87 
+ 88 // 外部接口，写入数据
+ 89 void CMyLog::Write(string strMessage)
+ 90 {
+ 91      EnterCriticalSection(&m_csLock);
+ 92      m_strText.push(strMessage);
+ 93      LeaveCriticalSection(&m_csLock);
+ 94 }
+ 95 
+ 96 // 关闭写入流，释放相关资源
+ 97 void CMyLog::Close()
+ 98 {
+ 99      SetEvent(m_hThreadEventExit);                // 向子线程发出退出信号
+100      WaitForSingleObject(m_hThread, INFINITE);    // 等待子线程关闭
+101      m_streamWriter.flush();
+102      m_streamWriter.close();
+103 }
+104 
+105 // 设置文件全路径名
+106 void CMyLog::SetFullName(string pstrName)
+107 {
+108     m_fileFullName =  pstrName;
+109 }
+110 
+111 // 获取文件全路径名
+112 string CMyLog::GetFullName()
+113 {
+114     return m_fileFullName;
+115 }
+116 
+117 // 获取文件路径
+118 string CMyLog::GetFilePath()
+119 {
+120     int idx = m_fileFullName.find_last_of("\\");
+121     return m_fileFullName.substr(0, idx);
+122 }
+123 
+124 // 设置文件名称
+125 string CMyLog::GetFileName()
+126 {
+127     int idx = m_fileFullName.find_last_of("\\");
+128     return m_fileFullName.substr(idx+1, m_fileFullName.length());
+129 }
+
+       测试用例如下：
+
+
+ 1 #include "iostream"
+ 2 #include "MyLog.h"
+ 3 
+ 4 using namespace std;
+ 5 
+ 6 int _tmain(int argc, _TCHAR* argv[])
+ 7 {
+ 8     CMyLog* myLog = CMyLog::GetInstance();
+ 9     myLog->SetFullName("E:\\Dlog\\DMMM\\TNN\\TMM\\12345\\MM\\log.txt");
+10     myLog->GetReady();
+11 
+12     int i = 10;
+13     while (i--)
+14     {
+15         Sleep(1000);
+16         myLog->Write("i am a student");
+17     }
+18     myLog->Close();
+19 
+20     CMyFileStatics myFile;
+21     myFile.SetFullName("E:\\Dlog\\11.txt");
+22     myFile.Statics();
+23 
+24     system("PAUSE");
+25     return 0;
+26 }
+
+      对于此解决方案可能存在的问题，还希望阅读此文的你试用或者核对源码以及思路，提出你的修改意见，以促进该日志类的壮大
+绿色通道： 好文要顶 关注我 收藏该文与我联系 
+BLoodMaster
+关注 - 0
+粉丝 - 58
++加关注
+1 0
+(请您对文章做出评价)
+? 上一篇：异步重叠之UDP之完成例程
+? 下一篇：字节流缓冲区设计代码，欢迎大家补充
+posted on 2011-11-17 16:26 BLoodMaster 阅读(1213) 评论(2) 编辑 收藏
+Feedback
+#1楼
+2011-11-17 16:27 | 菜鸟IT  
+沙发，要顶顶
+支持(0)反对(0)
+  
+#2楼
+2012-08-14 17:30 | 堕落的涛哥  
+日志不能格式化输入,建议增加功能!!

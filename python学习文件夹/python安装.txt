@@ -1,0 +1,49 @@
+python 配置环境变量
+5人收藏此文章, 我要收藏 发表于4个月前(2013-04-28 22:02) , 已有128次阅读 ，共0个评论
+默认情况下，在windows下安装python之后，系统并不会自动添加相应的环境变量。此时不能在命令行直接使用python命令。
+
+
+1. 首先需要在系统中注册python环境变量：假设python的安装路径为c:\python2.6，则修改我的电脑->属性->高级->环境变量->系统变量中的PATH为:
+
+(为了在命令行模式下运行Python命令，需要将python.exe所在的目录附加到PATH这个环境变量中。)
+
+ 
+
+PATH=PATH;c:\python26
+上述环境变量设置成功之后，就可以在命令行直接使用python命令。或执行"python *.py"运行python脚本了。
+
+ 
+
+2. 此时，还是只能通过"python *.py"运行python脚本，若希望直接运行*.py，只需再修改另一个环境变量PATHEXT:
+
+ 
+
+PATHEXT=PATHEXT;.PY;.PYM
+
+
+3. 另外，在使用python的过程中，可能需要经常查看某个命令的帮助文档，如使用help('print')查看print命令的使用说明。默认安装的python无法查看帮助文档，尚需进行简单的配置：
+
+在python安装目录下，找到python25.chm，使用
+
+ 
+
+hh -decompile .python26.chm
+将其反编译出来，然后将其所在的目录加入到上面提到的PATH环境变量中即可。
+
+ 
+
+4. 如何使Python解释器能直接import默认安装路径以外的第三方模块？
+
+为了能import默认安装路径以外的第三方的模块（如自己写的模块），需要新建PYTHONPATH环境变量，值为这个模块所在的目录。
+
+
+
+
+
+
+
+
+
+
+cd /d E:\xiaxiaoyu工作目录\code\server\importdata\xlrd-0.8.0\xlrd-0.8.0  
+python setup.py install

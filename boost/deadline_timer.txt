@@ -1,0 +1,178 @@
+注意deadline_timer和socket一样，都用 io_service作为构造函数的参数。也即，在其上进行异步操作，都将导致和io_service所包含的iocp相关联。这同样意味着在析构 io_service之前，必须析构关联在这个io_service上的deadline_timer。
+
+一个deadline_timer只维护一个超时时间，一个deadline_timer不同时维持多个定时器。
+
+void wait();
+void wait(boost::system::error_code & ec);
+这是个同步等待函数，例如：
+
+boost::asio::io_service io; 
+boost::asio::deadline_timer t(io, boost::posix_time::seconds(5));
+t.wait(); 
+由于不涉及到异步，该函数和io_service没什么关系。这个函数在windows下的实现就只是简单的Sleep。因此也就不存在cancel之说。
+
+如果t的expire时间已过，那么t.wait会立刻返回。
+
+例如如下代码：
+
+boost::asio::io_service io; 
+boost::asio::deadline_timer t(io, boost::posix_time::seconds(5));
+t.wait(); 
+t.wait();
+第一个t.wait会等待5s才返回，第2个t.wait会立刻返回。
+
+wait函数本身没有参数，不存在t.wait(seconds(5))的用法。
+
+可以在构造deadline_timer时指定时间。
+
+basic_deadline_timer(
+    boost::asio::io_service & io_service);
+
+basic_deadline_timer(
+    boost::asio::io_service & io_service,
+    const time_type & expiry_time);
+
+basic_deadline_timer(
+    boost::asio::io_service & io_service,
+    const duration_type & expiry_time);
+注意后两种的区别。以下2种用法是等价的：
+
+boost::asio::deadline_timer t(io, boost::posix_time::microsec_clock::universal_time()+boost::posix_time::seconds(5));
+
+boost::asio::deadline_timer t(io, boost::posix_time::seconds(5));
+
+前者是绝对时间，后者是相对时间。
+
+除了在deadline_timer构造函数中指定时间，也可以使用如下2个函数指定时间：
+
+expires_at，expires_from_now。这两个函数的区别是前者参数是绝对时间，后者是相对时间。例如：
+
+boost::asio::io_service io;
+
+boost::asio::deadline_timer t(io);
+
+t.expires_from_now(boost::posix_time::seconds(5));
+
+t.wait();
+
+注意这两个函数除了设定下次超时时间之外，还有一个效果是取消前面所有的异步wait。详情参看关于这两个函数的详细解释。
+
+template<
+    typename WaitHandler>
+void async_wait(
+    WaitHandler handler);
+其中void handler(
+const boost::system::error_code& error // Result of operation.
+);
+
+注意这个error很重要，表明这个handler是因为超时被执行还是因为被cancel。
+符合2种情况之一，handler被执行：超时或者被cancel。
+这同时隐含的说明了除非io.stop被调用，否则handler一定会被执行。即便是被cancel。
+被cancel有多种方法，直接调用cancel或者调用expires_at，expires_from_now重新设置超时时间。
+void handle_wait(const boost::system::error_code& error,
+    boost::asio::deadline_timer& t,int& count)
+{
+    if(!error)
+    {
+        std::cout<< count<<"\n";
+        if(count++<5)
+        {
+            t.expires_from_now(boost::posix_time::seconds(1));
+            t.async_wait(boost::bind(handle_wait,boost::asio::placeholders::error,
+                boost::ref(t),boost::ref(count)));    
+        }
+    }
+} 
+
+int main()
+{
+    boost::asio::io_service io;
+    boost::asio::deadline_timer t(io);
+    size_t a = t.expires_from_now(boost::posix_time::seconds(1));
+    int count = 0;
+    t.async_wait(boost::bind(handle_wait,boost::asio::placeholders::error,
+        boost::ref(t),boost::ref(count)));
+    io.run();    
+    return 0;
+}
+deadline_timer的析构函数什么也不做，因此不会导致发出的async_wait被cancel。
+
+std::size_t cancel();
+
+std::size_t cancel(
+    boost::system::error_code & ec);
+此函数调用会导致所有尚未返回的async_wait(handler)的handler被调用，同时error_code为boost::asio::error::operation_aborted。返回值是被cancel的timer数量。
+
+ time_type expires_at() const;
+
+std::size_t expires_at(
+    const time_type & expiry_time);
+
+std::size_t expires_at(
+    const time_type & expiry_time,
+    boost::system::error_code & ec);
+duration_type expires_from_now() const;
+
+std::size_t expires_from_now(
+    const duration_type & expiry_time);
+
+std::size_t expires_from_now(
+    const duration_type & expiry_time,
+    boost::system::error_code & ec); 以上2组函数用来设置新的超时时间，同时cancel所有未完成的async_wait操作。注意这两个函数的返回值即为cancel的操作数量。
+考虑如下场景，我们有一个workerthread正在调用io_work.run();
+此时主线程向workerthread发出了一个异步调用，例如post(...)，考虑到io_work.run很可能积压了很多handlers没有处理，或者某些handlers处理非常耗时，希望它在5s内必须返回。那么可以：
+
+void handle_wait(const boost::system::error_code& error,bool& Ret)
+{
+    if(!error) Ret = false;
+}
+
+void handle_func(
+    boost::shared_ptr<boost::asio::deadline_timer> t,
+    boost::shared_ptr<boost::asio::io_service> io,
+    int* v)
+{
+    boost::asio::io_service::work work(*io);
+
+    if(t->cancel()>0)
+    {        
+        *v = 1;
+    }
+}
+
+void func_delay_1_second()
+{
+    boost::asio::io_service io;
+    boost::asio::deadline_timer t(io,boost::posix_time::seconds(1));
+    t.wait();
+}
+
+bool sync_func(int& v,boost::asio::io_service& io_work)
+{
+    boost::shared_ptr<boost::asio::io_service> io(new boost::asio::io_service);
+    boost::shared_ptr<boost::asio::deadline_timer> t(new boost::asio::deadline_timer(*io));
+    t->expires_from_now(boost::posix_time::seconds(5));
+    bool ret = true;
+    t->async_wait(boost::bind(handle_wait,boost::asio::placeholders::error,boost::ref(ret)));
+    io_work.post(boost::bind(handle_func,t,io,&v));
+    io->run();
+    return ret;
+}
+
+int main()
+{
+    boost::asio::io_service io_work;
+    auto_ptr<boost::asio::io_service::work> work(new boost::asio::io_service::work(io_work));
+    boost::thread workthread(boost::bind(&boost::asio::io_service::run, &io_work));
+    for(int i=0;i<3;++i) io_work.post(func_delay_1_second);
+
+    int v = 0;
+    bool ret = sync_func(v,io_work);
+    if(ret) printf("v %d\n",v);
+
+    work.reset();
+    workthread.join();
+    return 0;
+}
+
+上面代码中如果先进入handle_wait，则表明超时，此时设置ret = false，然后io.run会退出，表明调用失败，如果稍后进入handle_func，则t->cancel会返回0，也不做任何操作。虽然在 io.run退出时会释放v，但由于handle_func不做任何操作因此也不会引起任何安全问题。如果handle_func先进入，则首先使用 work让io.run不会退出，然后取消timer，并且设置，随后work析构，io.run会退出。注意这里面的同步问题：如果先进入 handle_wait，随后进入handle_func，那么handle_func中的t->cancel会返回0从而不做任何事。如果先进入 handle_func，随后进入handle_wait，那么t->cancel或者返回0或者返回1，由于使用了work，io.run也不会 退出。注意这里的t和io都是shared_ptr的，否则因为如果handle_wait先返回，则io.run会立刻退出并析 构，handle_func中将使用悬空的t和io，将导致非法操作。注意这里的io必须是shared_ptr的，如果 boost::asio::io_service::work work(*io); 改成work(t->get_ioservice())；则t是有效的，而t所索引的io_service已经无效了，同样会导致非法操作。牢记 io_service的使用原则：必须首先析构所有索引的其他对象之后才能析构io_service。

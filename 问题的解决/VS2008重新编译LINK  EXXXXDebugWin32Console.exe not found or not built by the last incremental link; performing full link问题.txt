@@ -1,0 +1,21 @@
+Status：
+
+用VS2008创建一个Win32 Console Application，编译后生成两个Debug目录，一个在项目所属的Solution下，这个Debug中会生成.exe等类型程序结果文件。另外的一个在Project的目录中，这个Debug中包含pdb等文件，但是没有生成.exe等程序结果文件。
+
+ 
+
+Condition：
+
+当再次重新编译项目时，出现如题的问题。
+
+ 
+
+Cause:
+
+引起这个错误的根源在于Microsoft的VS的两个配置项配置冲突造成的： 配置1：Configuration Properties->General->Output Directory默认配置是$(SolutionDir)$(ConfigurationName) 配置2：Configuration Properties->Linker->General->Output Directory默认配置是$(OutDir)/$(ProjectName).exe 上述的两项配置是冲突的。所以在你重新编译的时候这个错误就出现了
+
+ 
+
+Solution:
+
+在project的property配置窗口中：Configuration Properties->General：把Output Directory从$(SolutionDir)$(ConfigurationName)改成$(ProjectDir)$(ConfigurationName)

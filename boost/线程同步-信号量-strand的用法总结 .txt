@@ -1,0 +1,330 @@
+这里展示不用boost::asio::strand而是利用常规线程同步的手段来完成线程的同步。
+
+ 
+
+#include <iostream>
+#include <boost/asio.hpp>
+#include <boost/thread.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/bind.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+class printer
+{
+public:
+    printer(boost::asio::io_service& io):
+       timer1_(io, boost::posix_time::seconds(1)),
+       timer2_(io, boost::posix_time::seconds(1)),
+       count_(0)
+    {
+       timer1_.async_wait(boost::bind(&printer::print1, this));
+       timer2_.async_wait(boost::bind(&printer::print2, this));
+    }
+    ~printer()
+    {
+       std::cout << "Final count is " << count_ << "\n";
+    }
+    void print1()
+    {
+       mutex_.lock();
+       if (count_ < 10)
+       {
+           std::cout <<"ThreadID:" <<GetCurrentThreadId() <<" Timer 1: " << count_ << "\n";
+           ++count_;
+           timer1_.expires_at(timer1_.expires_at() + boost::posix_time::seconds(1));
+           timer1_.async_wait(boost::bind(&printer::print1, this));
+       }
+       mutex_.unlock();
+    }
+    void print2()
+    {
+       mutex_.lock();
+       if (count_ < 10)
+       {
+           std::cout <<"ThreadID:" <<GetCurrentThreadId() <<" Timer 2: " << count_ << "\n";
+           ++count_;
+           timer2_.expires_at(timer2_.expires_at() + boost::posix_time::seconds(1));
+           timer2_.async_wait(boost::bind(&printer::print2, this));
+       }
+       mutex_.unlock();
+    }
+private:
+    boost::asio::deadline_timer timer1_;
+    boost::asio::deadline_timer timer2_;
+    int count_;
+    boost::mutex mutex_;
+};
+int main()
+{
+    boost::asio::io_service io;
+    printer p(io);
+    boost::thread t(boost::bind(&boost::asio::io_service::run, &io));
+    io.run();
+    t.join();
+    return 0;
+}
+ 
+
+这样的效果和原boost::asio的例5是差不多的，boost::asio除了支持原生的线程同步方式外还加入了新的asio::strand是有意义的，因为这两种方式还是有区别的。
+
+1.     用mutex的方式阻塞的位置是已经进入printe函数以后，而strand是阻塞在函数调用之前的。
+
+2.     相对来说，当大量的同样回调函数需要同步时，asio::strand的使用更为简单一些。
+
+3.     用mutex的方式明显能够更加灵活，因为不仅可以让线程阻塞在函数的开始，也可以阻塞在中间，结尾。
+
+4.     对于同步的对象来说，asio::strand就是对其支持的回调对象，mutex是对本身线程的一种同步。
+
+ 
+
+基本上，两者是相辅相成的，各有用处，但是实际上，假如从通用性出发，从额外学习知识触发，个人感觉strand似乎是可有可无的，不知道有没有必须使用strand的情况。。。。
+
+ 
+
+到此，asio文档中tutorial中的timer系列例子是结束了。其实这里展示的以asio基本原理为主，甚至都还没有接触到任何与网络相关的东西，但是，这些却是进一步学习的基础。。。。。。
+
+ 补充：利用strand实现的话：
+
+
+#include <iostream>
+#include <boost/asio.hpp>
+#include <boost/thread.hpp>
+#include <boost/bind.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+
+class printer
+{
+public:
+  printer(boost::asio::io_service& io)
+    : strand_(io),
+      timer1_(io, boost::posix_time::seconds(1)),
+      timer2_(io, boost::posix_time::seconds(1)),
+      count_(0)
+  {
+    timer1_.async_wait(strand_.wrap(boost::bind(&printer::print1, this)));
+    timer2_.async_wait(strand_.wrap(boost::bind(&printer::print2, this)));
+  }
+
+  ~printer()
+  {
+    std::cout << "Final count is " << count_ << "\n";
+  }
+
+  void print1()
+  {
+    if (count_ < 10)
+    {
+      std::cout << "Timer 1: " << count_ << "\n";
+      ++count_;
+
+      timer1_.expires_at(timer1_.expires_at() + boost::posix_time::seconds(1));
+      timer1_.async_wait(strand_.wrap(boost::bind(&printer::print1, this)));
+    }
+  }
+
+  void print2()
+  {
+    if (count_ < 10)
+    {
+      std::cout << "Timer 2: " << count_ << "\n";
+      ++count_;
+
+      timer2_.expires_at(timer2_.expires_at() + boost::posix_time::seconds(1));
+      timer2_.async_wait(strand_.wrap(boost::bind(&printer::print2, this)));
+    }
+  }
+
+private:
+  boost::asio::strand strand_;
+  boost::asio::deadline_timer timer1_;
+  boost::asio::deadline_timer timer2_;
+  int count_;
+};
+
+int main()
+{
+  boost::asio::io_service io;
+  printer p(io);
+  boost::thread t(boost::bind(&boost::asio::io_service::run, &io));
+  io.run();
+  t.join();
+
+  return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+boost asio io_service与 strand 分析
+1：
+
+    io_service 与 strand 的关系是什么？
+
+2： strand ： /// Provides serialised handler execution.
+
+      能够保证线程安全，同时被post 或 dispatch 的方法 不会被并发的执行；
+
+      而 io_service 不能保证：
+
+   看下面的例子：
+
+   #include <iostream>
+#include <boost/shared_ptr.hpp>
+#include <boost/asio.hpp>
+#include <iostream>
+#include <boost/bind.hpp>
+#include <boost/thread/thread.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+using namespace std;
+using namespace boost;
+using namespace asio;
+
+typedef boost::asio::io_service ioType;
+typedef boost::asio::strand strandType;
+ioType m_service;
+strandType m_strand(m_service);
+boost::mutex m_mutex;
+
+
+void print( int fatherID)
+{
+//  boost::mutex::scoped_lock lock(m_mutex);
+  static int count = 0;
+  cout<<"fatherID "<<fatherID<<" "<<endl;
+  sleep(1);
+  cout<<"count "<<count++<<endl;
+}
+
+void ioRun1()
+{
+  while(1)
+    {
+      m_service.run();
+    }
+}
+//
+void ioRun2()
+{
+  while(1)
+    {
+      m_service.run();
+    }
+}
+
+void print1()
+{
+  m_strand.dispatch(bind(print,1));
+//  cout<<"over"<<endl;
+}
+
+void print2()
+{
+  m_strand.post(bind(print,2));
+}
+
+void print3()
+{
+  m_strand.post(bind(print,3));
+}
+
+int main()
+{
+  boost::thread t0(ioRun1);
+  boost::thread t(ioRun2);
+  boost::thread t1(print1);
+  boost::thread t2(print2);
+  boost::thread t3(print3);
+  cout<<"111111"<<endl;
+  t1.join();
+  t2.join();
+  t3.join();
+  t0.join();
+  t.join();
+  cout<<"ads"<<endl;
+  return 0;
+}
+
+最终输出结果：
+
+   fatherID 3 
+　count 0
+　fatherID 2 
+　count 1
+
+　fatherID 1 
+   count 2
+
+说明这是线程安全的！
+
+但是  而 io_service 不能保证：
+
+更改程序：
+
+
+void print1()
+{
+  m_service.dispatch(bind(print,1));
+//  cout<<"over"<<endl;
+}
+
+void print2()
+{
+  m_service.post(bind(print,2));
+}
+
+void print3()
+{
+  m_service.post(bind(print,3));
+}
+
+ fatherID 3 
+fatherID 2 
+count 0
+fatherID 1 
+count 1
+count 2
+
+很显然，这里存在并发的问题
+
+3：
+
+  wrapper 包裹器：
+
+   * This function is used to create a new handler function object that, when
+   * invoked, will automatically pass the wrapped handler to the strand's
+   * dispatch function.
+
+廖师兄的code:
+
+    enum OperateResult
+        {
+            Success = 0,
+            Failed,
+            Timeout,
+        };
+            typedef boost::function<void(OperateResult)> ResultHandlerType;
+            signal<void(const NetMessage &message, ResultHandlerType callback,
+                    int timeout)> asyncWriteRequest;
+
+ asyncWriteRequest(message, m_strand->wrap(bind(
+            &NetServer::asyncResultHandler, this, _1, handler)), m_timeout);
+
+它应该也是线程安全的。
+
+写的很漂亮。。。。
+
+4：
+
+  注意 保证线程安全

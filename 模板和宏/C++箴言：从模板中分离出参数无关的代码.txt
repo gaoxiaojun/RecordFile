@@ -1,0 +1,173 @@
+templates（模板）是节省时间和避免代码重复的极好方法。不必再输入20个相似的 classes，每一个包含 15 个 member functions（成员函数），你可以输入一个 class template（类模板），并让编译器实例化出你需要的 20 个 specific classes（特定类）和 300 个函数。（class template（类模板）的 member functions（成员函数）只有被使用时才会被隐式实例化，所以只有在每一个函数都被实际使用时，你才会得到全部 300 个member functions（成员函数）。）function templates（函数模板）也有相似的魅力。不必再写很多函数，你可以写一个 function templates（函数模板）并让编译器做其余的事。这不是很重要的技术吗？
+
+　　是的，不错……有时。如果你不小心，使用 templates（模板）可能导致 code bloat（代码膨胀）：重复的（或几乎重复的）的代码，数据，或两者都有的二进制码。结果会使源代码看上去紧凑而整洁，但是目标代码臃肿而松散。臃肿而松散很少会成为时尚，所以你需要了解如何避免这样的二进制扩张。
+
+　　你的主要工具有一个有气势的名字 commonality and variability analysis（通用性与可变性分析），但是关于这个想法并没有什么有气势的东西。即使在你的职业生涯中从来没有使用过模板，你也应该从始至终做这样的分析。
+
+　　当你写一个函数，而且你意识到这个函数的实现的某些部分和另一个函数的实现本质上是相同的，你会仅仅复制代码吗？当然不。你从这两个函数中分离出通用的代码，放到第三个函数中，并让那两个函数来调用这个新的函数。也就是说，你分析那两个函数以找出那些通用和变化的构件，你把通用的构件移入一个新的函数，并把变化的构件保留在原函数中。类似地，如果你写一个 class，而且你意识到这个 class 的某些构件和另一个 class 的构件是相同的，你不要复制那些通用构件。作为替代，你把通用构件移入一个新的 class 中，然后你使用 inheritance（继承）或 composition（复合）使得原来的 classes 可以访问这些通用特性。原来的 classes 中不同的构件——变化的构件——仍保留在它们原来的位置。
+
+　　在写 templates（模板）时，你要做同样的分析，而且用同样的方法避免重复，但这里有一个技巧。在 non-template code（非模板代码）中，重复是显式的：你可以看到两个函数或两个类之间存在重复。在 template code（模板代码）中。重复是隐式的：仅有一份 template（模板）源代码的拷贝，所以你必须培养自己去判断在一个 template（模板）被实例化多次后可能发生的重复。
+
+　　例如，假设你要为固定大小的 square matrices（正方矩阵）写一个 templates（模板），其中，要支持 matrix inversion（矩阵转置）。
+
+　　template<typename T, // template for n x n matrices of
+
+　　std::size_t n> // objects of type T; see below for info
+
+　　class SquareMatrix { // on the size_t parameter
+
+　　public:
+
+　　...
+
+　　void invert(); // invert the matrix in place
+
+　　};
+
+　　这个 template（模板）取得一个 type parameter（类型参数）T，但是它还有一个类型为 size_t 的参数——一个 non-type parameter（非类型参数）。non-type parameter（非类型参数）比 type parameter（类型参数）更不通用，但是它们是完全合法的，而且，就像在本例中，它们可以非常自然。
+
+　　现在考虑以下代码
+
+　　SquareMatrix<double, 5> sm1;
+
+　　...
+
+　　sm1.invert(); // call SquareMatrix<double, 5>::invert
+
+　　SquareMatrix<double, 10> sm2;
+
+　　...
+
+　　sm2.invert(); // call SquareMatrix<double, 10>::invert
+
+　　这里将有两个 invert 的拷贝被实例化。这两个函数不是相同的，因为一个作用于 5 x 5 矩阵，而另一个作用于 10 x 10 矩阵，但是除了常数 5 和 10 以外，这两个函数是相同的。这是一个发生 template-induced code bloat（模板导致的代码膨胀）的经典方法。
+
+　　如果你看到两个函数除了一个版本使用了 5 而另一个使用了 10 之外，对应字符全部相等，你该怎么做呢？你的直觉让你创建一个取得一个值作为一个参数的函数版本，然后用 5 或 10 调用这个参数化的函数以代替复制代码。你的直觉为你提供了很好的方法！以下是一个初步过关的 SquareMatrix 的做法
+
+　　template<typename T> // size-independent base class for
+
+　　class SquareMatrixBase { // square matrices
+
+　　protected:
+
+　　...
+
+　　void invert(std::size_t matrixSize); // invert matrix of the given size
+
+　　...
+
+　　};
+
+　　template< typename T, std::size_t n>
+
+　　class SquareMatrix: private SquareMatrixBase<T> {
+
+　　private:
+
+　　using SquareMatrixBase<T>::invert; // avoid hiding base version of
+
+　　// invert; see Item 33
+
+　　public:
+
+　　...
+
+　　void invert() { this->invert(n); } // make inline call to base class
+
+　　}; // version of invert; see below
+
+　　// for why "this->" is here
+
+　　就像你能看到的，invert 的参数化版本是在一个 base class（基类）SquareMatrixBase 中的。与 SquareMatrix 一样，SquareMatrixBase 是一个 template（模板），但与 SquareMatrix 不一样的是，它参数化的仅仅是矩阵中的对象的类型，而没有矩阵的大小。因此，所有持有一个给定对象类型的矩阵将共享一个单一的 SquareMatrixBase class。从而，它们共享 invert 在那个 class 中的版本的单一拷贝。
+
+　　SquareMatrixBase::invert 仅仅是一个计划用于 derived classes（派生类）以避免代码重复的方法，所以它是 protected 的而不是 public 的。调用它的额外成本应该为零，因为 derived classes（派生类）的 inverts 使用 inline functions（内联函数）调用 base class（基类）的版本。（这个 inline 是隐式的——参见《理解inline化的介入和排除》。）这些函数使用了 "this->" 标记，因为就像 Item 43 解释的，如果不这样，在 templatized base classes（模板化基类）中的函数名（诸如 SquareMatrixBase<T>）被 derived classes（派生类）隐藏。还要注意 SquareMatrix 和 SquareMatrixBase 之间的继承关系是 private 的。这准确地反映了 base class（基类）存在的理由仅仅是简化 derived classes（派生类）的实现的事实，而不是表示 SquareMatrix 和 SquareMatrixBase 之间的一个概念上的 is-a 关系。（关于 private inheritance（私有继承）的信息，参见 《谨慎使用私有继承》。）
+
+　　迄今为止，还不错，但是有一个棘手的问题我们还没有提及。SquareMatrixBase::invert 怎样知道应操作什么数据？它从它的参数知道矩阵的大小，但是它怎样知道一个特定矩阵的数据在哪里呢？大概只有 derived class（派生类）才知道这些。derived class（派生类）如何把这些传达给 base class（基类）以便于 base class（基类）能够做这个转置呢？
+
+　　一种可能是为 SquareMatrixBase::invert 增加另一个的参数，也许是一个指向存储矩阵数据的内存块的开始位置的指针。这样可以工作，但是十有八九，invert 不是 SquareMatrix 中仅有的能被写成一种 size-independent（大小无关）的方式并移入 SquareMatrixBase 的函数。如果有几个这样的函数，全都需要一种找到持有矩阵内的值的内存的方法。我们可以为它们全都增加一个额外的参数，但是我们一再重复地告诉 SquareMatrixBase 同样的信息。这看上去不太正常。
+
+　　一个可替换方案是让 SquareMatrixBase 存储一个指向矩阵的值的内存区域的指针。而且一旦它存储了这个指针，它同样也可以存储矩阵大小。最后得到的设计大致就像这样
+
+　　template<typename T>
+
+　　class SquareMatrixBase {
+
+　　protected:
+
+　　SquareMatrixBase(std::size_t n, T *pMem) // store matrix size and a
+
+　　: size(n), pData(pMem) {} // ptr to matrix values
+
+　　void setDataPtr(T *ptr) { pData = ptr; } // reassign pData
+
+　　...
+
+　　private:
+
+　　std::size_t size; // size of matrix
+
+　　T *pData; // pointer to matrix values
+
+　　};
+
+　　这样就是让 derived classes（派生类）决定如何分配内存。某些实现可能决定直接在 SquareMatrix object 内部存储矩阵数据
+
+　　template<typename T, std::size_t n>
+
+　　class SquareMatrix: private SquareMatrixBase<T> {
+
+　　public:
+
+　　SquareMatrix() // send matrix size and
+
+　　: SquareMatrixBase<T>(n, data) {} // data ptr to base class
+
+　　...
+
+　　private:
+
+　　T data[n*n];
+
+　　};
+
+　　这种类型的 objects 不需要 dynamic memory allocation（动态内存分配），但是这些 objects 本身可能会非常大。一个可选方案是将每一个矩阵的数据放到 heap（堆）上
+
+　　template<typename T, std::size_t n>
+
+　　class SquareMatrix: private SquareMatrixBase<T> {
+
+　　public:
+
+　　SquareMatrix() // set base class data ptr to null,
+
+　　: SquareMatrixBase<T>(n, 0), // allocate memory for matrix
+
+　　pData(new T[n*n]) // values, save a ptr to the
+
+　　{ this->setDataPtr(pData.get()); } // memory, and give a copy of it
+
+　　... // to the base class
+
+　　private:
+
+　　boost::scoped_array<T> pData; // see Item 13 for info on
+
+　　}; // boost::scoped_array
+
+　　无论数据存储在哪里，从膨胀的观点来看关键的结果在于：现在 SquareMatrix 的许多——也许是全部—— member functions（成员函数）可以简单地 inline 调用它的 base class versions（基类版本），而这个版本是与其它所有持有相同数据类型的矩阵共享的，而无论它们的大小。与此不同大小的 SquareMatrix objects 是截然不同的类型，所以，例如，即使 SquareMatrix<double, 5> 和 SquareMatrix<double, 10> objects 使用 SquareMatrixBase<double> 中同样的 member functions（成员函数），也没有机会将一个 SquareMatrix<double, 5> object 传送给一个期望一个 SquareMatrix<double, 10> 的函数。很好，不是吗？
+
+　　很好，是的，但不是免费的。将矩阵大小硬性固定在其中的 invert 版本很可能比将大小作为一个函数参数传入或存储在 object 中的共享版本能产生更好的代码。例如，在 size-specific（特定大小）的版本中，sizes（大小）将成为 compile-time constants（编译期常数），因此适用于像 constant propagation 这样的优化，包括将它们作为 immediate operands（立即操作数）嵌入到生成的指令中。在 size-independent version（大小无关版本）中这是不可能做到的。
+
+　　另一方面，将唯一的 invert 的版本用于多种矩阵大小缩小了可执行码的大小，而且还能缩小程序的 working set（工作区）大小以及改善 instruction cache（指令缓存）中的 locality of reference（引用的局部性）。这些能使程序运行得更快，超额偿还了失去的针对 invert 的 size-specific versions（特定大小版本）的任何优化。哪一个效果更划算？唯一的分辨方法就是在你的特定平台和典型数据集上试验两种方法并观察其行为。
+
+　　另一个效率考虑关系到 objects 的大小。如果你不小心，将函数的 size-independent 版本（大小无关版本）上移到一个 base class（基类）中会增加每一个 object 的整体大小。例如，在我刚才展示的代码中，即使每一个 derived class（派生类）都已经有了一个取得数据的方法，每一个 SquareMatrix object 都还有一个指向它的数据的指针存在于 SquareMatrixBase class 中，这为每一个 SquareMatrix object 至少增加了一个指针的大小。通过改变设计使这些指针不再必需是有可能的，但是，这又是一桩交易。例如，让 base class（基类）存储一个指向矩阵数据的 protected 指针导致封装性的降低。它也可能导致资源管理复杂化：如果 base class（基类）存储了一个指向矩阵数据的指针，但是那些数据既可以是动态分配的也可以是物理地存储于 derived class object（派生类对象）之内的（就像我们看到的），它如何决定这个指针是否应该被删除？这样的问题有答案，但是你越想让它们更加精巧一些，它就会变成更复杂的事情。在某些条件下，少量的代码重复就像是一种解脱。
+
+只讨论了由于 non-type template parameters（非类型模板参数）引起的膨胀，但是 type parameters（类型参数）也能导致膨胀。例如，在很多平台上，int 和 long 有相同的二进制表示，所以，可以说，vector<int> 和 vector<long> 的 member functions（成员函数）很可能是相同的——膨胀的恰到好处的解释。某些连接程序会合并同样的函数实现，还有一些不会，而这就意味着在一些环境上一些模板在 int 和 long 上都被实例化而能够引起代码重复。类似地，在大多数平台上，所有的指针类型有相同的二进制表示，所以持有指针类型的模板（例如，list<int*>，list<const int*>，list<SquareMatrix<long, 3>*> 等）应该通常可以使用每一个 member function（成员函数）的单一的底层实现。典型情况下，这意味着与 strongly typed pointers（强类型指针）（也就是 T* 指针）一起工作的 member functions（成员函数）可以通过让它们调用与 untyped pointers（无类型指针）（也就是 void* 指针）一起工作的函数来实现。一些标准 C++ 库的实现对于像 vector，deque 和 list 这样的模板就是这样做的。如果你关心起因于你的模板的代码膨胀，你可能需要用同样的做法开发模板。
+
+　　Things to Remember
+
+　　·templates（模板）产生多个 classes 和多个 functions，所以一些不依赖于 template parameter（模板参数）的模板代码会引起膨胀。
+
+　　·non-type template parameters（非类型模板参数）引起的膨胀常常可以通过用 function parameters（函数参数）或 class data members（类数据成员）替换 template parameters（模板参数）而消除。
+
+　　·type parameters（类型参数）引起的膨胀可以通过让具有相同的二进制表示的实例化类型共享实现而减少

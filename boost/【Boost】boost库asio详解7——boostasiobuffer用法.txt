@@ -1,0 +1,68 @@
+[-]
+asiobuffer常用的构造方法
+字符数组
+字符向量
+boost的数组
+字符串
+asiobuffer的常用方法
+转换方法
+获取大小
+asiobuffer的读写问题
+与transfer_all结合
+与transfer_at_least结合
+1. asio::buffer常用的构造方法
+asio::buffer有多种的构造方法，而且buffer大小是自动管理的
+1.1 字符数组
+[cpp] view plaincopyprint?
+char d1[128];  
+size_t bytes_transferred = socket.receive(boost::asio::buffer(d1));  
+1.2 字符向量
+[cpp] view plaincopyprint?
+std::vector<char> d2(128);  
+size_t bytes_transferred = socket.receive(boost::asio::buffer(d2));  
+1.3 boost的数组
+[cpp] view plaincopyprint?
+boost::array<char, 128> d3;  
+size_t bytes_transferred = sock.receive(boost::asio::buffer(d3));   
+1.4 字符串
+[cpp] view plaincopyprint?
+string str = "hello world";  
+bytes_transferred = socket.send(boost::asio::buffer(str));   
+2. asio::buffer的常用方法
+2.1 转换方法
+[cpp] view plaincopyprint?
+boost::asio::mutable_buffer b1 =boost::asio::buffer(str)；  
+unsigned char* p1 = boost::asio::buffer_cast<unsigned char*>(b1);  
+2.2 获取大小
+[cpp] view plaincopyprint?
+std::size_t s1 = boost::asio::buffer_size(b1);  
+3. asio::buffer的读写问题
+注意的是boost::asio::const_buffer是只读的buffer, 而boost::asio::mutable_buffer则可写。
+读写buffer也是有讲究的 
+3.1 与transfer_all()结合
+[cpp] view plaincopyprint?
+boost::array<char, 128> buf;  
+boost::system::error_code ec;  
+std::size_t n = boost::asio::read(  
+    socket,  
+    boost::asio::buffer(buf),  
+    boost::asio::transfer_all(),  
+    ec);  
+if (ec)  
+{  
+  // An error occurred.  
+}  
+else  
+{  
+  // n == 128  
+}  
+boost::asio::transfer_all()能够使buffer中的所有数据都传送完毕。即读满buffer为止。
+3.2 与transfer_at_least()结合
+[cpp] view plaincopyprint?
+std::size_t n = boost::asio::read(  
+    socket,  
+    boost::asio::buffer(buf),  
+    boost::asio::transfer_at_least(64),  
+    ec);  
+意义即读满64字节为止。返回。
+当然还有最常用的bytes_transferred，这个例子就很多了。 

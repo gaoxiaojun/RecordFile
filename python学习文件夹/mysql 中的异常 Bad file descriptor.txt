@@ -1,0 +1,31 @@
+用python版本的mysql connector 构造自己的数据库操作类，实际使用的时候系统报错 Bad file descriptor
+
+而且这个错误带点偶发性质，经过分析发觉导致这一问题的来源是在提交事务的时候数据库的对象已经主动关闭了！
+
+思路：
+
+beginTrans
+
+insert data1
+
+isExist=select data2（调用了自构造的getOneRow函数）
+if isExist 
+
+ insert data2
+
+endTrans
+
+由于之前提到过在同一conn下进行sql 查询，connector 本身带有一定的缓冲机制，所以在自定义的所有查询中函数（getOneRow,getAllRows）全部都是先打开conn然后再关闭.
+
+由此导致了在上面的代码中endtrans时已经conn.close了
+
+所以系统爆出了Bad file descriptor这个错误，
+
+网上查询这个错误，大部分反应都是同socket有关系
+
+
+本以为mysql connector是官方出得,谁知道前前后后居然产生了这么多问题。
+
+之前用的各个版本的数据库操作类都是第三方写的，当自己来写的时候才发觉有些问题之前一直没有考虑到！
+
+我是不是把这个数据库操作的python类放到git去啊

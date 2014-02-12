@@ -1,0 +1,15 @@
+今天粗略测试了一下boost::bind的性能，得出以下几个猜测(仅限于gcc，windows下未测试)：
+
+boost::function内部预留了(sizeof(成员函数指针) + sizeof(指针))的空间，所以如果bind的参数占用空间小，则会使用placement new的方式，不会涉及动态内存分配。典型的情况如boost::bind(成员函数指针, 对象指针)，或者全局函数指针加少量参数的情况。
+
+这种实现方式类似fast delegate。
+
+如果绑定的参数数据大小超出预留空间，则采用动态内存分配，此时性能会急剧下降。
+
+若这样的用法造成性能瓶颈，可以采用自定义空间配置器的办法来解决：
+
+http://www.boost.org/doc/libs/1_42_0/doc/html/boost_asio/example/allocation/server.cpp
+
+ 
+
+2010.8.24补充：如果只是boost::bind(&func, x, y, z)()这种形式的调用，并不会new/delete，内部应该是用了meta programming技巧。但是如果把bind的结果赋值给function如 boost::function<> myfunc = boost::bind::(&func, x, y, z);内部会进行转换，参数过多就会动态分配内存，而且function的拷贝也比较

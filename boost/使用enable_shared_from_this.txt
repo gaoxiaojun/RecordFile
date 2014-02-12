@@ -1,0 +1,732 @@
+使用enable_shared_from_this
+
+说明
+The header <boost/enable_shared_from_this.hpp> defines the class template enable_shared_from_this. It is used as a base class that allows a shared_ptr to the current object to be obtained from within a member function.
+继承该类就可以进行基于当前子类进行安全的weap_ptr到shared_ptr的转换...
+
+代码实例
+以下代码中Y类继承enable_shared_from_this,, 从而我们可以直接在函数中调用shared_from_this获得该对象的shared_ptr
+
+class Y: public enable_shared_from_this<Y>
+{
+public:
+
+    shared_ptr<Y> f()
+    {
+        return shared_from_this();
+    }
+}
+
+int main()
+{
+    shared_ptr<Y> p(new Y);
+// 调用f获得shared_ptr
+
+    shared_ptr<Y> q = p->f();
+    assert(p == q);
+    assert(!(p < q || q < p)); // p and q must share ownership
+
+}
+
+该类的实现
+
+template<class T> class enable_shared_from_this
+{
+protected:
+
+    enable_shared_from_this()
+    {
+    }
+
+    enable_shared_from_this(enable_shared_from_this const &)
+    {
+    }
+
+    enable_shared_from_this & operator=(enable_shared_from_this const &)
+    {
+        return *this;
+    }
+
+    ~enable_shared_from_this()
+    {
+    }
+
+public:
+
+    shared_ptr<T> shared_from_this()
+    {
+        shared_ptr<T> p(_internal_weak_this);
+        BOOST_ASSERT(p.get() == this);
+        return p;
+    }
+
+    shared_ptr<T const> shared_from_this() const
+    {
+        shared_ptr<T const> p(_internal_weak_this);
+        BOOST_ASSERT(p.get() == this);
+        return p;
+    }
+
+// Note: No, you don't need to initialize _internal_weak_this
+
+//
+
+// Please read the documentation, not the code
+
+//
+
+// http://www.boost.org/libs/smart_ptr/enable_shared_from_this.html
+
+
+    typedef T _internal_element_type; // for bcc 5.5.1
+
+    mutable weak_ptr<_internal_element_type> _internal_weak_this;
+};
+
+
+结论
+这个实用类提供了简单的shared_ptr转换和安全的weak式验证... 这样通过继承就可以使用shared_from_this进行安全当前类weak_ptr到shared_ptr的转换...
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+boost 库 enable_shared_from_this 实现原理分析 (2009-12-16 21:30:37)转载▼
+标签： it	
+使用情景：当类对象被 shared_ptr 管理时，需要在类自己定义的函数里把当前类对象作为参数传给其他函数时，这时需要传递一个 shared_ptr ，否则就不能保持 shared_ptr 管理这个类对象的语义（因为有一个 raw pointer 指向这个类对象，而 shared_ptr 对类对象的这个引用没有计数，很有可能 shared_ptr 已经把类对象资源释放了，而那个调用函数还在使用类对象——显然，这肯定会产生错误）。
+
+很好奇这个模板类的实现。
+
+先看看怎么使用：
+
+对一个类 A ，当我们希望使用 shared_ptr 来管理其类对象时，而且需要在自己定义的函数里把类对象 shared_ptr （为什么不用普通指针，当我们使用智能指针管理资源时，必须统一使用智能指针，而不能在某些地方使用智能指针某些地方使用 raw pointer ，否则不能保持智能指针的语义，从而产生各种错误）传给其他函数时，可以让类 A 从 enable_shared_from_this 继承：
+
+class A : public boost::enable_shared_from_this<A> {
+};
+
+然后在类 A 中需要传递类对象本身 shared_ptr 的地方使用 shared_from_this 函数来获得指向自身的 shared_ptr 。
+
+一个非常有代表性的例子：
+
+http://www.boost.org/doc/libs/1_39_0/doc/html/boost_asio/tutorial/tutdaytime3/src.html
+
+另《Beyond the C++ Standard Library》 shared_ptr 节也有很简单明了的例子。
+
+实现原理：
+
+首先要考虑的是：在类对象本身当中不能存储类对象本身的 shared_ptr ，否则类对象 shared_ptr 永远也不会为0了，从而这些资源永远不会释放，除非程序结束。
+
+其次：类对象肯定是外部函数通过某种机制分配的，而且一经分配立即交给 shared_ptr 管理（再次强调一遍：给 shared_ptr 管理的资源必须在分配时交给 shared_ptr ），而且以后凡是需要共享使用类对象的地方必须使用这个 shared_ptr 当作右值来构造产生或者拷贝产生另一个 shared_ptr 从而达到共享使用的目的。
+
+有了以上两点的限制，要实现我们的目标（即在类对象内部使用类对象的 shared_ptr ）有以下两种方案：
+
+1、类对象的外部 shared_ptr 作为函数参数传给类的需要引用类对象自身的函数——显然，这种方法很丑陋，而且并不是所有的情况都可行（如在外部 shared_ptr 不可见的作用域中就不行）；
+
+2、类对象自身存储某种信息，在需要自身 shared_ptr 时来产生一个临时的 shared_ptr 。
+
+显然，第2种方法更优雅（对于用户来说），关键是信息怎么存储？
+
+对了， weak_ptr ！
+
+实际上， boost 中就是这样实现的。
+
+但现在的问题是：何时初始化这个 weak_ptr ？因为类对象生成时还没有生成相应的用来管理这个对象的 shared_ptr 。
+
+boost 1.39.0 中是这样实现的：
+
+首先生成类 A ：会依次调用 enable_shared_from_this 的构造函数（定义为 protected ），以及类 A 的构造函数。在调用 enable_shared_from_this 的构造函数时，会初始化定义在 enable_shared_from_this 中的 weak_ptr （调用其默认构造函数），这时这个 weak_ptr 是无效的（或者说不指向任何对象）。
+
+接着：外部程序会把指向类 A 对象的指针作为初始化参数来初始化一个 shared_ptr 。
+
+现在来看看 shared_ptr 是如何初始化的， shared_ptr 定义了如下构造函数：
+
+template<class Y>
+    explicit shared_ptr( Y * p ): px( p ), pn( p ) 
+    {
+        boost::detail::sp_enable_shared_from_this( this, p, p );
+    }
+
+里面调用了  boost::detail::sp_enable_shared_from_this ：
+
+template< class X, class Y, class T >
+ inline void sp_enable_shared_from_this( boost::shared_ptr<X> const * ppx,
+ Y const * py, boost::enable_shared_from_this< T > const * pe )
+{
+    if( pe != 0 )
+    {
+        pe->_internal_accept_owner( ppx, const_cast< Y* >( py ) );
+    }
+}
+
+里面又调用了 enable_shared_from_this 的 _internal_accept_owner ：
+
+template<class X, class Y> void _internal_accept_owner( shared_ptr<X> const * ppx, Y * py ) const
+    {
+        if( weak_this_.expired() )
+        {
+            weak_this_ = shared_ptr<T>( *ppx, py );
+        }
+    }
+
+而在这里对 enable_shared_from_this 的成员 weak_ptr 进行拷贝赋值，使得整个 weak_ptr 作为类对象  shared_ptr 的一个观察者。
+
+这时，当类对象本身需要自身的 shared_ptr 时，就可以从这个 weak_ptr 来生成一个了。
+
+原来如此。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Shared_from_this 几个值得注意的地方
+shared_from_this()是enable_shared_from_this<T>的成员 函数，返回shared_ptr<T>。首先需要注意的是，这个函数仅在shared_ptr<T>的构造函数被调用之后才能使 用。原因是enable_shared_from_this::weak_ptr并不在构造函数中设置，而是在shared_ptr<T>的 构造函数中设置。 
+
+如下代码是错误的：
+class D:public boost::enable_shared_from_this<D>
+{
+public:
+    D()
+    {
+        boost::shared_ptr<D> p=shared_from_this();
+    }
+};
+复制代码
+原 因很简单，在D的构造函数中虽然可以保证enable_shared_from_this<D>的构造函数已经被调用，但正如前面所 说，weak_ptr还没有设置。 
+
+如下代码也是错误的：
+class D:public boost::enable_shared_from_this<D>
+{
+public:
+    void func()
+    {
+        boost::shared_ptr<D> p=shared_from_this();
+    }
+};
+void main()
+{
+    D d;
+    d.func();
+}
+复制代码
+错 误原因同上。 
+
+如下代码是正确的：
+void main()
+{
+    boost::shared_ptr<D> d(new D);
+    d->func();
+}
+复制代码
+这 里boost::shared_ptr<D> d(new D)实际上执行了3个动作：首先调用enable_shared_from_this<D>的构造函数；其次调用D的构造函数；最后调用 shared_ptr<D>的构造函数。是第3个动作设置了enable_shared_from_this<D>的 weak_ptr，而不是第1个动作。这个地方是很违背c++常理和逻辑的，必须小心。 
+
+结论是，不要在构造函数中使用shared_from_this；其次，如果要使用shared_ptr，则应该 在所有地方均使用，不能使用D d这种方式，也决不要传递裸指针。   
+
+另一个值得注意的地方是在类的继承树中不能有2个或更多个enable_shared_from_this<T>。例如如下代码是错误的：
+class A:public boost::enable_shared_from_this<A>
+{
+public:
+    A():a(1){}
+    virtual ~A(){}
+    boost::shared_ptr<A> get_ptra(){return shared_from_this();}
+    int a;
+};
+class B:public A,public boost::enable_shared_from_this<B>
+{
+public:
+    B():b(2){}
+    boost::shared_ptr<B> get_ptrb()
+    {
+        return boost::enable_shared_from_this<B>::shared_from_this();
+    }
+    int b;
+};
+int _tmain(int argc, _TCHAR* argv[])
+{
+    {
+        boost::shared_ptr<B> x(new B);
+        boost::shared_ptr<A> a1 = x->get_ptra();
+        boost::shared_ptr<B> b1 = x->get_ptrb();
+    }
+    return 0;
+}
+复制代码
+注 意上面代码中，B同时拥有2个enable_shared_from_this的基类，一个是 enable_shared_from_this<A>，另一个是enable_shared_from_this<B>。在 boost::shared_ptr<B> x(new B);这行代码中，shared_ptr<B>的构造函数仅会设置2个基类中的一个的weak_ptr。在上面的例子中，仅设置 enable_shared_from_this<A>的。如果修改B的定义为： 
+
+class B:public boost::enable_shared_from_this<B>,public A， 
+
+则仅设置enable_shared_from_this<B>的weak_ptr。很明显都是错误的。 
+
+那么enable_shared_from_this以及shared_ptr为何要如此实现呢？又为什么会有如此怪异的结果呢？ 
+
+首先考察shared_ptr的构造函数：
+template<class Y>
+explicit shared_ptr( Y * p ): px( p ), pn( p ) // Y must be complete
+{
+    boost::detail::sp_enable_shared_from_this( pn, p, p );
+}
+template<class T, class Y> void sp_enable_shared_from_this( shared_count const & pn, boost::enable_shared_from_this<T> const * pe, Y const * px )
+{
+    if(pe != 0) pe->_internal_weak_this._internal_assign(const_cast<Y*>(px), pn);
+}
+复制代码
+注 意这个sp_enable_shared_from_this是一个模板函数，而且仅调用了一次，所以不可能2个 enable_shared_from_this基类的weak_ptr都被赋值。但问题在于，在调换了B的定义之后结果居然是不一样的。这里有一个很隐 秘的编译器BUG。按道理来说，编译器在编译这段代码时，应该注意到无法真正决断该怎么实例化sp_enable_shared_from_this并且 报一个错，但vc 2008并没有报错，而是通过编译了。（g++会在此处报错） 
+
+那么正确的解法是怎样的呢？
+class B:public A
+{
+public:
+    B():b(2){}
+    boost::shared_ptr<B> get_ptrb()
+    {
+        return boost::dynamic_pointer_cast<B>(shared_from_this());
+    }
+    int b;
+};
+复制代码
+注 意到这里B并没有直接继承enable_shared_from_this，而是使用dynamic_pointer_cast进行了类型转换。 
+
+关于为什么enable_shared_from_this是这样实现的，可以参看作者原文： 
+
+Every enable_shared_from_this base contains a weak_ptr, The shared_ptr constructor looks up the enable_shared_from_this base and initializes its weak_ptr accordingly. This doesn't work when there are
+two or more enable_shared_from_this bases, though. 
+
+I could put the weak_ptr in a virtual polymorphic base. This would force polymorphism on all clients of enable_shared_from_this... probably acceptable. It will also force a dynamic_pointer_cast in every
+shared_from_this, and this may be harder to swallow, particularly in cases where RTTI is off. So I'm not sure. 
+
+If you do want the above behavior, it's easy to duplicate, as I already responded in my first post on the topic. Just make FooB return dynamic_pointer_cast<B>( FooA() ) and remove the enable_shared_from_this<B>
+base (A needs to be made polymorphic, of course). 
+
+注意为了让dynamic_pointer_cast能工作，A必须具有虚函数，那么最简单的做法当然是令其析构函 数为虚函数（通常一个class如果希望被继承，析构函数就应该为虚函数）。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+在 C++ 中需要自己来处理内存，稍微处理不当，就会存在非常郁闷的内存泄漏问题
+
+ 
+
+还好，现在 C++ 中推出了强大的智能指针，即 smart_ptr ，本文先稍微介绍一下 smart_ptr ，然后具体说说 shared_ptr 和 weak_ptr ，特别是 enable_shared_from_this 和 shared_from_this
+
+ 
+
+除了标准库中的 auto_ptr 之外
+
+在 boost 或者 tr1 中的 smart_ptr 主要是有下面几种
+
+scoped_ptr
+scoped_array
+shared_ptr
+shared_array
+intrusive_ptr
+weak_ptr
+这些里面最难理解的是综合应用了 weak_ptr 和 shared_ptr 的 enable_shared_from_this 类，在该类中定了成员函数 shared_from_this() ，返回 shared_ptr<T> 。这个函数仅在 shared_ptr<T> 的构造函数被调用之后才能使用。原因是 enable_shared_from_this::weak_ptr 并不在构造函数中设置（此处的构造函数指的是类型 T 的构造函数），而是在 shared_ptr<T> 的构造函数中设置（此处的构造函数指的是类型 shared_ptr<T> 的构造函数）。
+
+ 
+
+在下面的代码中：
+
+ 
+
+Cpp代码
+#include <iostream>   
+  
+#include <string>   
+  
+    
+  
+#include <boost/shared_ptr.hpp>   
+  
+#include <boost/weak_ptr.hpp>   
+  
+#include <boost/enable_shared_from_this.hpp>   
+  
+    
+  
+using namespace std;   
+  
+    
+  
+struct Ansible   
+  
+  : public boost::enable_shared_from_this<Ansible>   
+  
+{   
+  
+    boost::shared_ptr<Ansible> get_shared()   
+  
+    {   
+  
+        boost::shared_ptr<Ansible> r(this);   
+  
+    
+  
+        return r;   
+  
+    }   
+  
+    
+  
+    ~Ansible()   
+  
+    {   
+  
+        cout<<"Destructor"<<endl;   
+  
+    }   
+  
+};   
+  
+    
+  
+int main(int argc,char* argv[])   
+  
+{   
+  
+    boost::shared_ptr<Ansible> a(new Ansible);   
+  
+    Ansible& r = *a;   
+  
+    //boost::shared_ptr<Ansible> b = r.get_shared();   
+  
+    boost::shared_ptr<Ansible> b = r.shared_from_this();   
+  
+    
+  
+    cout<<"Reference Number "<<a.use_count()<<" "<<b.use_count()<<endl;   
+  
+    
+  
+    return 0;   
+  
+}  
+#include <iostream>
+#include <string>
+#include <boost/shared_ptr.hpp>
+#include <boost/weak_ptr.hpp>
+#include <boost/enable_shared_from_this.hpp>
+using namespace std;
+struct Ansible
+: public boost::enable_shared_from_this<Ansible>
+{
+boost::shared_ptr<Ansible> get_shared()
+{
+boost::shared_ptr<Ansible> r(this);
+return r;
+}
+~Ansible()
+{
+cout<<"Destructor"<<endl;
+}
+};
+int main(int argc,char* argv[])
+{
+boost::shared_ptr<Ansible> a(new Ansible);
+Ansible& r = *a;
+//boost::shared_ptr<Ansible> b = r.get_shared();
+boost::shared_ptr<Ansible> b = r.shared_from_this();
+cout<<"Reference Number "<<a.use_count()<<" "<<b.use_count()<<endl;
+return 0;
+}
+ 
+
+若不使用 shared_from_this() 成员函数，则会输出 a 和 b 的 use_count() 都为 1 ，然后调用 2 次类型 Ansible 的析构函数，若添加了该成员函数，在 a 和 b 的 use_count() 输出为 2 ，只是调用一次 Ansible 的析构函数。原因是 enable_shared_from_this 里面在 shared_ptr<T> 的时候构造了一个 weak_ptr 类，而 weak_ptr 只是监视，不增加引用计数
+
+ 
+
+（下面是转载： http://huyuguang1976.spaces.live.com/blog/cns!2A9E272E3C33AFF1!185.entry ）
+
+所以如下代码是错误的：
+
+ 
+
+class D:public boost::enable_shared_from_this<D>
+
+{
+
+public:
+
+    D()
+
+    {
+
+        boost::shared_ptr<D> p=shared_from_this();
+
+    }
+
+};
+
+ 
+
+原因很简单，在 D 的构造函数中虽然可以保证 enable_shared_from_this<D> 的构造函数已经被调用，但正如前面所说， weak_ptr 还没有设置。
+
+ 
+
+如下代码也是错误的：
+
+ 
+
+class D:public boost::enable_shared_from_this<D>
+
+{
+
+public:
+
+    void func()
+
+    {
+
+        boost::shared_ptr<D> p=shared_from_this();
+
+    }
+
+};
+
+ 
+
+void main()
+
+{
+
+    D d;
+
+    d.func();
+
+}
+
+ 
+
+错误原因同上。
+
+ 
+
+如下代码是正确的：
+
+ 
+
+void main()
+
+{
+
+    boost::shared_ptr<D> d(new D);
+
+    d->func();
+
+}
+
+ 
+
+这里 boost::shared_ptr<D> d(new D) 实际上执行了 3 个动作：首先调用 enable_shared_from_this<D> 的构造函数；其次调用 D 的构造函数；最后调用 shared_ptr<D> 的构造函数。是第 3 个动作设置了 enable_shared_from_this<D> 的 weak_ptr ，而不是第 1 个动作。这个地方是很违背 c++ 常理和逻辑的，必须小心。
+
+ 
+
+结论是，不要在构造函数中使用 shared_from_this ；其次，如果要使用 shared_ptr ，则应该在所有地方均使用，不能使用 D d 这种方式，也决不要传递裸指针。
+
+
+另解：：：：：
+struct X
+
+{
+
+         boost::shared_ptr<X> getX()
+
+{
+
+         boost::shared_ptr<X> r ;//????如何实现
+
+         return r;
+
+}
+
+};
+
+ 
+
+要得到X的智能指针,只是在对象指针是受shared_ptr保护的基础上的,举例如下:
+
+void test_X()
+
+{
+
+         {
+
+X x;
+
+                  boost::shared_ptr<X> px = x.getX();//错误
+
+}
+
+         {
+
+X* x = new X();
+
+boost::shared_ptr<X> px = x->getX();//错误
+
+}
+
+         {
+
+boost::shared_ptr<X>  x (new X());
+
+boost::shared_ptr<X> px = x->getX();//正确
+
+}
+
+}
+
+ 
+
+本文来自CSDN博客，转载请标明出处：http://blog.csdn.net/zade/archive/2008/07/16/2660620.aspx
+
+
+
+
+
+
+
+
+
+
+
+
+
+enable_share_from_this功能介绍
+2012-12-12 15:56:39     我来说两句       作者：陈抒 收藏     我要投稿
+这个类很有意思，让一个被shared_ptr管理生命周期的类能够在自己的成员函数内部访问shared_ptr。有点绕。
+
+举个例子，下面的代码在函数f内部通过this构造了shared_ptr对象，然后打印x_的值。
+
+[cpp] 
+class B { 
+public: 
+    B(): x_(4) { 
+        cout << "B::B()" << endl; 
+    } 
+     
+    ~B() { 
+        cout << "B::~B()" << endl; 
+    } 
+     
+    void f() { 
+        shared_ptr<B> p(this); 
+        cout << p->x_ << endl; 
+        //shared_from_this(); 
+    } 
+     
+private: 
+    int x_; 
+}; 
+ 
+ 
+/*
+ * 
+ */ 
+int main(int argc, char** argv) { 
+    shared_ptr<B> x(new B); 
+    x->f(); 
+    return 0; 
+} 
+编译通过，但是运行结果：
+[cpp] 
+B::B() 
+4 
+B::~B() 
+B::~B() 
+两次析构B对象，这是个灾难。
+现在试一下enable_shared_from_this：
+[cpp] 
+class A : public enable_shared_from_this<A> { 
+public: 
+    A() { 
+        cout << "A::A()" << endl; 
+    } 
+     
+    ~A() { 
+        cout << "A::~A()" << endl; 
+    } 
+     
+    void f() { 
+        //cout << shared_from_this()->x_ << endl; // this way is okay too 
+        shared_ptr<A> p = shared_from_this(); 
+        cout << p->x_ << endl; 
+    } 
+     
+private: 
+    int x_; 
+}; 
+ 
+ 
+/*
+ * 
+ */ 
+int main(int argc, char** argv) { 
+    shared_ptr<A> x(new A); 
+    x->f(); 
+    return 0; 
+} 
+运行结果：
+[cpp] 
+A::A() 
+0 
+A::~A() 
+那么，为什么需要这样做呢？在自己的类里面访问自己的成员，其实只是个示例代码，一定必要都没有。
+
+不过有一种可能，就是f函数需要返回自己的指针给调用者，难道这样写么？
+
+[cpp]
+A* f(); 
+一个裸指针返回出去，失控了。谁也不知道调用者会干什么？
+比较聪明的方法是设计成：
+
+shared_ptr<A> f()
+
+好了，这就是为什么我们需要enable_shared_from_this。
+
+
+
+
+
+
+
+
+

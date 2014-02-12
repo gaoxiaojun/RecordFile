@@ -1,0 +1,301 @@
+本人最近研究了一下开源的日志系统log4c。简单总结一下：
+
+一、安装:
+
+我看网上好多人介绍log4c安装的时候都说有两个步骤：先下载expat安装包并安装expat，然后下载log4c安装包并安装log4c。这么看来，log4c是依赖expat的。但是有时候我们不想使用的日志系统还要依赖别的库，毕竟现在的开源日志系统很多，这样一来log4c就没有那么大的优势了。所以我仔细看了log4c的README文档，发现log4c模块默认情况下是使用expat库来作为XML文件的解析器（因为log4c的配置文件默认是一个叫log4crc的XML文件），我们可以在运行配置文件的时候加上--without-expat选项就可以不使用expat库而使用log4c自定义的解析器，该解析器是使用lex/yacc的代码进行解析的。
+安装步骤跟很多其他的库一样，都是三个步骤：
+[plain] view plaincopyprint?
+./configure  
+ make  
+ make install  
+
+
+我们可以在configure的时候加一些选项，如果要设置log4c的安装路径为/usr/local/log4c，我们就可以加--prefix=/usr/local/log4c，如果不想依赖expat解析器，我们可以加--without-expat。如果我们要指定软件运行的系统平台，交叉环境下，我们可以用--host选项来设置，如果运行在arm平台下就加--host=arm-linux，如果是运行在mips平台下就加--host=mips-linux。
+ 如果安装完的时候出现了以下错误，不要着急：
+
+../../src/log4c/.libs/liblog4c.so: undefined reference to `rpl_malloc'
+
+../../src/log4c/.libs/liblog4c.so: undefined reference to `rpl_realloc'
+
+解决方法如下：
+
+修改log4c_build/log4c-1.2.1/src/config.h.in文件：
+
+将201行的#undef malloc注释掉。
+
+将204行的#undef realloc注释掉。
+
+然后执行以下命令：
+[plain] view plaincopyprint?
+./configure（同样有必要的情况下加上相应的选项）  
+make clean  
+make  
+make install  
+
+
+二、介绍一下log4c的配置文件log4crc:
+log4c中有三个重要的概念, category, appender, layout。
+
+1. category（类型）用于区分不同的logger, 其实它就是个logger。在一个程序中我们可以通过category来指定很多的logger，用于不同的目的。
+
+2. appdender用于描述输出流，通过为category来指定一个appdender，可以决定将log信息来输出到什么地方去，比如stdout, stderr, 文件, 或者是socket等等。说说常见的两种，stdout是输出到控制台，文件当然就是输出到文件咯，在log4c中默认的是使用轮询文件保存日志，假如我们设定的文件名为wlanLog（配置文件中是appender节点的prefix属性），文件的maxsize设置为102400（Bytes），文件的maxnum为10（文件的最多个数）,那么日志会保存在wlanLog.0文件中，当该文件的大小达到102400Bytes是就会自动保存到wlanLog.1文件中，依次类推，当文件的个数达到maxnum且文件已满，接下来会自动保存到wlanLog.0文件中，这样循环保存的方式就是轮询。
+
+3. layout用于指定日志信息的格式，通过为appender来指定一个layout,可以决定log信息以何种格式来输出，比如是否有带有时间戳， 是否包含文件位置信息等，以及他们在一条log信息中的输出格式的等，一般有basic和dated两种。大家感兴趣可以分别去试一下看看日志有什么区别。
+
+最后，说一下log4crc文件放在项目工程生成的目标文件的那个目录下。
+
+
+
+三、使用:
+
+[cpp] view plaincopyprint?
+// 初始化  
+log4c_init();  
+  
+// 获取一个已有的category，这个category（此处为WLAN_Console）必须先配置到配置文件中。  
+log4c_category_t* mycat = log4c_category_get("WLAN_Console");  
+  
+// 用该category进行日志输出，日志的类型为DEBUG，输出信息为 "Hello World!"，  
+log4c_category_log(mycat, LOG4C_PRIORITY_DEBUG, "Hello World!");  
+  
+// 去初始化  
+log4c_fini();  
+  
+// log4c_category_log的原型为：  
+static LOG4C_INLINE void log4c_category_log(const log4c_category_t* a_category,  
+    int a_priority,  
+    const char* a_format,  
+    ...)  
+// 其中后面的日志输出的格式化字符串a_format跟printf的输出格式化字符串一样，后面的参量表也和printf一样。非常方便！  
+
+
+
+
+log4c的日志优先级有11个，在src/log4c/目录下的priority.h中。我们常用的也就error、warn、info、debug和trace。
+[cpp] view plaincopyprint?
+/** 
+ * Predefined Levels of priorities. These correspond to the priority levels 
+ * used by syslog(3). 
+ **/  
+ typedef enum {  
+    /** fatal */        LOG4C_PRIORITY_FATAL    = 000,   
+    /** alert */        LOG4C_PRIORITY_ALERT    = 100,   
+    /** crit */         LOG4C_PRIORITY_CRIT     = 200,   
+    /** error */        LOG4C_PRIORITY_ERROR    = 300,   
+    /** warn */         LOG4C_PRIORITY_WARN     = 400,   
+    /** notice */       LOG4C_PRIORITY_NOTICE   = 500,   
+    /** info */         LOG4C_PRIORITY_INFO     = 600,   
+    /** debug */        LOG4C_PRIORITY_DEBUG    = 700,  
+    /** trace */        LOG4C_PRIORITY_TRACE    = 800,  
+    /** notset */       LOG4C_PRIORITY_NOTSET   = 900,  
+    /** unknown */      LOG4C_PRIORITY_UNKNOWN  = 1000  
+} log4c_priority_level_t;  
+
+
+
+有时候为了方便，我们可以将log4c_category_log用宏定义封装起来，这个网上有例子，我给个链接吧：
+http://www.cnblogs.com/jyli/archive/2010/02/11/1660606.html
+我们也可以用一个函数封装起来，这个网上我没找到，我就把我作的封装分享一下吧，因为这个牵扯到变参函数的参数传递，所以可能好多刚接触到变参函数的童鞋不是很清楚。
+[cpp] view plaincopyprint?
+/********************************************************************** 
+函数名称          :       logOut 
+创建日期          :       2011-12-27 
+作者              :<span style="white-space:pre">     </span>  丶小小小威 
+函数描述          :       将日志输出到控制台  
+输入参数          : 
+    const LOG_LEVEL level :   日志输出的级别 
+    const char *format    :   日志输出的格式化字符串 
+输出参数          :  
+    无 
+返回值            :   
+    无 
+**********************************************************************/   
+void CLogger::logOut(const LOG_LEVEL level, const char *format, ...)  
+{  
+    char temp[MAX_LEN] = {0};  
+    int ret = 0;  
+  
+    va_list ap;  
+    va_start(ap, format);  
+    ret = vsnprintf(temp, MAX_LEN, format, ap);  
+    assert((-1<ret) && (MAX_LEN>ret));  
+  
+    switch (m_logMode)  
+    {  
+        case TO_CONSOLE_AND_FILE:    //既输出到控制台又输出到文件  
+        {  
+            if (m_consoleCategory && m_fileCategory)  
+            {  
+                log4c_category_log(m_consoleCategory, level, "%s", temp);  
+                log4c_category_log(m_fileCategory, level, "%s", temp);  
+            }  
+  
+            break;  
+        }  
+  
+        case TO_CONSOLE:             //输出到控制台  
+        {  
+            log4c_category_log(m_consoleCategory, level, "%s", temp);  
+  
+            break;  
+        }  
+  
+        case TO_FILE:                //输出到文件  
+        {  
+            log4c_category_log(m_fileCategory, level, "%s", temp);  
+  
+            break;  
+        }  
+  
+        default:  
+            break;  
+    }  
+  
+    va_end(ap);  
+}  
+
+
+
+说明：我这里的LOG_LEVEL是我自己定义的一个枚举类型，成员为常用的几种日志类型（或者说优先级），m_logMode是我Log模块封装类的一个成员变量，表示日志输出的方式，上面的三种。我想这个我就不用多说了吧，你懂的，= =！
+ 下面调用的时候也很简单：
+
+[cpp] view plaincopyprint?
+char c = '\x41';  
+char s[20];  
+const char *p = "How do you do";  
+int a = 1234;  
+int ha = 12;  
+int *i;  
+i = &ha;  
+float f = 3.141592653589;  
+double x = 0.12345678987654321;  
+strcpy(s, "Hello, Comrade");  
+  
+logger->logOut(ERROR, "a=%d", a);        /*结果输出十进制整数a=1234*/  
+printf("===============================> a=%d\n\n", a);  
+  
+logger->logOut(ERROR, "a=%6d", a);   /*结果输出6位十进制整数a=  1234*/  
+printf("===============================> a=%6d\n\n", a);  
+  
+logger->logOut(ERROR, "a=%06d", a);  /*结果输出6位十进制整数a=001234*/  
+printf("===============================> a=%06d\n\n", a);  
+  
+logger->logOut(ERROR, "a=%2d", a);   /*a超过2位，按实际值输出a=1234*/  
+printf("===============================> a=%2d\n\n", a);  
+  
+logger->logOut(ERROR, "*i=%4d", *i); /*输出4位十进制整数×i=  12*/  
+printf("===============================> *i=%4d\n\n", *i);  
+  
+logger->logOut(ERROR, "*i=%-4d", *i);    /*输出左对齐4位十进制整数×i=12*/  
+printf("===============================> *i=%-4d\n\n", *i);  
+  
+logger->logOut(ERROR, "i=%p", i);        /*输出地址i=0xbf96538c*/  
+printf("===============================> i=%p\n\n", i);  
+  
+logger->logOut(ERROR, "f=%f", f);        /*输出浮点数f=3.141593*/  
+printf("===============================> f=%f\n\n", f);  
+  
+logger->logOut(ERROR, "f=6.4f", f);  /*输出6位其中小数点后4位的浮点数 f=3.1416*/  
+printf("===============================> f=6.4f\n", f);  
+  
+logger->logOut(ERROR, "x=%lf", x);   /*输出长浮点数x=0.123457*/  
+printf("===============================> x=%lf\n\n", x);  
+  
+logger->logOut(ERROR, "x=%18.16lf", x);  /*输出18位其中小数点后16位的长浮点数 x=0.1234567898765432*/  
+printf("===============================> x=%18.16lf\n\n", x);  
+  
+logger->logOut(ERROR, "c=%c", c);        /*输出字符c=A*/  
+printf("===============================> c=%c\n\n", c);  
+  
+logger->logOut(ERROR, "c=%x", c);        /*输出字符ASCII码值c=41*/  
+printf("===============================> c=%x\n\n", c);  
+  
+logger->logOut(ERROR, "s[]=%s", s);  /*输出数组字符串s[]=Hello, Comrade*/  
+printf("===============================> s[]=%s\n\n", s);  
+  
+logger->logOut(ERROR, "s[]=%6.9s", s);   /*输出最多9个字符的字符串s[]=Hello, Co*/  
+printf("===============================> s[]=%6.9s\n\n", s);  
+  
+logger->logOut(ERROR, "s=%p", s);        /*输出数组字符串首字符地址s=FFBE*/  
+printf("===============================> s=%p\n\n", s);  
+  
+logger->logOut(ERROR, "*p=%s", p);   /*输出指针字符串p=How do you do*/  
+printf("===============================> *p=%s\n\n", p);  
+  
+logger->logOut(ERROR, "p=%p", p);        /*输出指针的值p=0x8049a70*/  
+printf("===============================> p=%p\n\n", p);  
+
+
+说明：logger是我写的日志封装类的一个对象，大家可以把上面的部分代码加到自己的程序中，看看输出结果和printf到底是不是一样？我测试过，完全一样，这样一看，使用log4c日志模块更让人一目了然，尤其是在一个比较大的项目中，有一个好的日志模块将是非常重要的！差点忘了还有个编译运行。
+
+
+四、编译运行:
+
+编译的时候要链接上库和头文件。编译的格式如下：
+[plain] view plaincopyprint?
+mips-linux-g++  -I /usr/local/include/ -I /usr/local/include/libxml2/  logger.cpp main.cpp  -o capture -L /usr/local/lib/ -lstdc++ -llog4c -lxml2  
+
+
+
+说明：我用的是mips，所以编译时使用mips-linux-g++，我的log4c安装默认的路径下：/usr/local。这里用到的libxml2是因为我涉及修改log4c的配置文件log4crc，是一个XML文件，我选择libxml2。在mips上运行的时候要先告诉mips库所在的位置，使用export LD_LIBRARY_PATH=“库所在的位置”，建议大家写个Makefile。
+
+
+五、log4crc配置文件:
+
+[html] view plaincopyprint?
+<?xml version="1.0" encoding="utf-8"?>  
+<!DOCTYPE log4c SYSTEM "">  
+<log4c version="1.2.1">  
+    <config>  
+        <bufsize>0</bufsize>  
+        <debug level="2"/>  
+        <nocleanup>0</nocleanup>  
+        <reread>1</reread>  
+    </config>  
+  
+    <category name="root" priority="notice"/>  
+    <category name="six13log.log" priority="error" appender="stdout"/>  
+  
+    <!--输出到控制台-->  
+    <category name="WLAN_Console" priority="trace" appender="stdout"/>  
+  
+    <!--保存日志到文件-->  
+    <category name="WLAN_File" priority="trace" appender="myrollingfileappender"/>  
+  
+    <!--logdir为日志输出路径  prefix为文件名  layout为输出格式 -->   
+    <appender name="myrollingfileappender" type="rollingfile" logdir="." prefix="wlan_log" layout="dated" rollingpolicy="myrollingpolicy"/>  
+    
+    <!--sizewin表示达到最大值后新建日志文件  值由maxsize设定，单位Bytes     maxnum为最大文件数目-->  
+    <rollingpolicy name="myrollingpolicy" type="sizewin" maxsize="102400" maxnum="10"/>  
+      
+    <appender name="stdout" type="stream" layout="basic"/>  
+    <appender name="stderr" type="stream" layout="dated"/>  
+    <appender name="syslog" type="syslog" layout="basic"/>  
+  
+    <appender name="s13file" type="s13_file" layout="basic"/>  
+    <appender name="plain_stderr" type="s13_stderr" layout="none"/>  
+    <appender name="cat_stderr" type="s13_stderr" layout="catlayout"/>  
+    <appender name="xml_stderr" type="s13_stderr" layout="xmllayout"/>  
+    <appender name="user_stderr" type="s13_stderr" layout="userlayout"/>  
+  
+    <layout name="basic" type="basic"/>  
+    <layout name="dated" type="dated"/>  
+      
+    <layout name="catlayout" type="s13_cat"/>  
+    <layout name="xmllayout" type="s13_xml"/>  
+    <layout name="none" type="s13_none"/>  
+    <layout name="userlayout" type="s13_userloc"/>  
+      
+    <category name="six13log.log.app.application2" priority="debug" appender="cat_stderr"/>  
+    <category name="six13log.log.app.application3" priority="debug" appender="user_stderr"/>  
+    <category name="six13log.log.app" priority="debug" appender="myrollingfileappender"/>  
+    <category name="log4c.examples.helloworld" priority="debug" appender="stdout"/>  
+</log4c>  
+
+
+  Over~~~
+
+  最后祝大家工作顺利！有什么不准确的地方希望大家提出来，共同探讨。谢谢~
+
+
+

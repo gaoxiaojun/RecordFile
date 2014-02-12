@@ -1,0 +1,14 @@
+(lp1
+S'apple'
+p2
+aS'mango'
+p3
+aS'carrot'
+p4
+a.(S'apple'
+S'mama'
+p1
+S'lala'
+p2
+tp3
+.

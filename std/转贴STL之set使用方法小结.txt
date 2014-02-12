@@ -1,0 +1,337 @@
+/*
+set/multiset会根据待定的排序准则，自动将元素排序。两者不同在于前者不允许元素重复，而后者允许。
+1) 不能直接改变元素值，因为那样会打乱原本正确的顺序，要改变元素值必须先删除旧元素，则插入新元素
+2) 不提供直接存取元素的任何操作函数，只能通过迭代器进行间接存取，而且从迭代器角度来看，元素值是常数
+3) 元素比较动作只能用于型别相同的容器(即元素和排序准则必须相同)
+set模板原型：//Key为元素(键值)类型
+template <class Key, class Compare=less<Key>, class Alloc=STL_DEFAULT_ALLOCATOR(Key) >
+从原型可以看出，可以看出比较函数对象及内存分配器采用的是默认参数，因此如果未指定，它们将采用系统默认方式，
+另外，利用原型，可以有效地辅助分析创建对象的几种方式
+*/
+#include <iostream>
+#include <string>
+#include <set>
+
+using namespace std;
+
+struct strLess
+{
+   bool operator() (const char *s1, const char *s2) const
+   {
+    return strcmp(s1, s2) < 0;
+   }
+};
+
+void printSet(set<int> s)
+{
+copy(s.begin(), s.end(), ostream_iterator<int>(cout, ", ") );
+
+// set<int>::iterator iter;
+// for (iter = s.begin(); iter != s.end(); iter++)
+//    //cout<<"set["<<iter-s.begin()<<"]="<<*iter<<", "; //Error
+//    cout<<*iter<<", ";
+cout<<endl;
+}
+
+void main()
+{
+//创建set对象，共5种方式，提示如果比较函数对象及内存分配器未出现，即表示采用的是系统默认方式
+//创建空的set对象，元素类型为int，
+set<int> s1; 
+//创建空的set对象，元素类型char*，比较函数对象(即排序准则)为自定义strLess
+set<const char*, strLess> s2( strLess); 
+//利用set对象s1,拷贝生成set对象s2
+set<int> s3(s1); 
+//用迭代区间[&first, &last)所指的元素，创建一个set对象
+int iArray[] = {13, 32, 19};
+set<int> s4(iArray, iArray + 3);
+//用迭代区间[&first, &last)所指的元素，及比较函数对象strLess，创建一个set对象
+const char* szArray[] = {"hello", "dog", "bird" };
+set<const char*, strLess> s5(szArray, szArray + 3, strLess() );
+
+//元素插入：
+//1,插入value，返回pair配对对象，可以根据.second判断是否插入成功。(提示:value不能与set容器内元素重复)
+//pair<iterator, bool> insert(value)
+//2,在pos位置之前插入value，返回新元素位置，但不一定能插入成功
+//iterator insert(&pos, value)
+//3,将迭代区间[&first, &last)内所有的元素，插入到set容器
+//void insert[&first, &last)
+cout<<"s1.insert() : "<<endl;
+for (int i = 0; i <5 ; i++)
+    s1.insert(i*10);
+printSet(s1);
+
+cout<<"s1.insert(20).second = "<<endl;;
+if (s1.insert(20).second)
+    cout<<"Insert OK!"<<endl;
+else
+    cout<<"Insert Failed!"<<endl;
+
+cout<<"s1.insert(50).second = "<<endl;
+if (s1.insert(50).second)
+{cout<<"Insert OK!"<<endl; printSet(s1);}
+else
+    cout<<"Insert Failed!"<<endl;
+
+cout<<"pair<set<int>::iterator::iterator, bool> p;\np = s1.insert(60);\nif (p.second):"<<endl;
+pair<set<int>::iterator::iterator, bool> p;
+p = s1.insert(60);
+if (p.second)
+{cout<<"Insert OK!"<<endl; printSet(s1);}
+else
+   cout<<"Insert Failed!"<<endl;
+
+//元素删除
+//1,size_type erase(value) 移除set容器内元素值为value的所有元素，返回移除的元素个数
+//2,void erase(&pos) 移除pos位置上的元素，无返回值
+//3,void erase(&first, &last) 移除迭代区间[&first, &last)内的元素，无返回值
+//4,void clear()， 移除set容器内所有元素
+
+cout<<"\ns1.erase(70) = "<<endl;
+s1.erase(70);
+printSet(s1);
+cout<<"s1.erase(60) = "<<endl;
+s1.erase(60);
+printSet(s1);
+
+cout<<"set<int>::iterator iter = s1.begin();\ns1.erase(iter) = "<<endl;
+set<int>::iterator iter = s1.begin();
+s1.erase(iter);
+printSet(s1);
+
+//元素查找
+//count(value)返回set对象内元素值为value的元素个数
+//iterator find(value)返回value所在位置，找不到value将返回end()
+//lower_bound(value),upper_bound(value), equal_range(value) 略
+cout<<"\ns1.count(10) = "<<s1.count(10)<<", s1.count(80) = "<<s1.count(80)<<endl;
+cout<<"s1.find(10) : ";
+if (s1.find(10) != s1.end()) 
+    cout<<"OK!"<<endl;
+else
+    cout<<"not found!"<<endl;
+
+cout<<"s1.find(80) : ";
+if (s1.find(80) != s1.end()) 
+    cout<<"OK!"<<endl;
+else
+    cout<<"not found!"<<endl;
+
+//其它常用函数
+cout<<"\ns1.empty()="<<s1.empty()<<", s1.size()="<<s1.size()<<endl;
+set<int> s9;
+s9.insert(100);
+cout<<"s1.swap(s9) :"<<endl;
+s1.swap(s9);
+cout<<"s1: "<<endl;
+printSet(s1);
+cout<<"s9: "<<endl;
+printSet(s9);
+//lower_bound,upper_bound,equal_range(略)
+}
+
+
+///////////////i测试结果/////////////////////////
+s1.insert() :
+0, 10, 20, 30, 40,
+s1.insert(20).second =
+Insert Failed!
+s1.insert(50).second =
+Insert OK!
+0, 10, 20, 30, 40, 50,
+pair<set<int>::iterator::iterator, bool> p;
+p = s1.insert(60);
+if (p.second):
+Insert OK!
+0, 10, 20, 30, 40, 50, 60,
+
+s1.erase(70) =
+0, 10, 20, 30, 40, 50, 60,
+s1.erase(60) =
+0, 10, 20, 30, 40, 50,
+set<int>::iterator iter = s1.begin();
+s1.erase(iter) =
+10, 20, 30, 40, 50,
+
+s1.count(10) = 1, s1.count(80) = 0
+s1.find(10) : OK!
+s1.find(80) : not found!
+
+s1.empty()=0, s1.size()=5
+s1.swap(s9) :
+s1:
+100,
+s9:
+10, 20, 30, 40, 50,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+STL set
+编辑
+
+STL 对这个序列可以进行查找，插入删除序列中的任意一个元素，而完成这些操作的时间同这个序列中元素个数的对数成比例关系，并且当游标指向一个已删除的元素时，删除操作无效。而一个经过更正的和更加实际的定义应该是：一个集合(set)是一个容器，它其中所包含的元素的值是唯一的。这在收集一个数据的具体值的时候是有用的。集合中的元素按一定的顺序排列，并被作为集合中的实例。一个集合通过一个链表来组织，在插入操作和删除操作上比向量(vector)快，但查找或添加末尾的元素时会有些慢。具体实现采用了红黑树的平衡二叉树的数据结构。
+目录
+1集和多集（set 和multiset 容器类）
+2构造
+3方法：
+4集合操作：
+5例子：
+1集和多集（set 和multiset 容器类）
+
+#include <set>
+一个集合（set）是一个容器，它其中所包含的元素的值是唯一的。
+集和多集的区别是：set支持唯一键值，set中的值都是特定的，而且只出现一次；而multiset中可以出现副本键，同一值可以出现多次。
+2构造
+
+explicit set(const Compare&=compare());
+如：set<int,less<int> > set1;
+less<int>是一个标准类，用于形成升序排列函数对象。降序排列是用greater<int>。
+Template<class InputIterator> set(InputIterator, InputIterator,\ const Compare&=compare());
+如：set<int ,less<int> >set2(vector1.begin(),vector1.end());
+通过指定某一预先定义的区间来初始化set对象的构造函数。
+set（const set<Key,Compare&>）;
+如：set<int ,less<int> >set3(set2);
+复制构造函数。
+3方法：
+
+begin() 返回指向第一个元素的迭代器
+clear() 清除所有元素
+count() 返回某个值元素的个数
+empty() 如果集合为空，返回true(真）
+end() 返回指向最后一个元素之后的迭代器，不是最后一个元素
+equal_range() 返回集合中与给定值相等的上下限的两个迭代器
+erase() 删除集合中的元素
+find() 返回一个指向被查找到元素的迭代器
+get_allocator() 返回集合的分配器
+insert() 在集合中插入元素
+lower_bound() 返回指向大于（或等于）某值的第一个元素的迭代器
+key_comp() 返回一个用于元素间值比较的函数
+max_size() 返回集合能容纳的元素的最大限值
+rbegin() 返回指向集合中最后一个元素的反向迭代器
+rend() 返回指向集合中第一个元素的反向迭代器
+size() 集合中元素的数目
+swap() 交换两个集合变量
+upper_bound() 返回大于某个值元素的迭代器
+value_comp() 返回一个用于比较元素间的值的函数
+4集合操作：
+
+std::set_intersection() :这个函数是求两个集合的交集。
+std::set_union() :求两个集合的并集
+std::set_difference（）：差集
+std::set_symmetric_difference（）：得到的结果是第一个迭代器相对于第二个的差集并 上第二个相当于第一个的差集
+struct compare{
+bool operator ()(string s1,string s2){
+return s1>s2;
+}///自定义一个仿函数
+};
+std::set<string,compare> s
+string str[10];
+string *end = set_intersection(s.begin(),s.end(),s2.begin(),s2.end(),str,compare());//求交集，返回值指向str最后一个元素的尾端
+end = std::set_union(s.begin(),s.end(),s2.begin(),s2.end(),str,compare());//并集
+end = std::set_difference(s.begin(),s.end(),s2.begin(),s2.end(),str,compare());//s2相对于s1的差集
+end = std::set_difference(s2.begin(),s2.end(),s.begin(),s.end(),str,compare());//s1相对于s2的差集
+end = std::set_symmetric_difference(s.begin(),s.end(),s2.begin(),s2.end(),str,compare());//上面两个差集的并集
+5例子：
+
+1///////////////////////////////////////////////////////////////////
+#include <iostream>
+#include <set>
+using namespace std;
+int main(void)
+{
+set<int> set1;
+for(int i=0; i<10; ++i)
+set1.insert(i);
+for(set<int>::iterator p=set1.begin();p!=set1.end();++p)
+cout<<*p<<"";
+if(set1.insert(3).second)//把3插入到set1中
+//插入成功则set1.insert(3).second返回1，否则返回0
+//此例中，集中已经有3这个元素了，所以插入将失败
+cout<<"set insert success";
+else
+cout<<"set insert failed";
+int a[] = {4, 1, 1, 1, 1, 1, 0, 5, 1, 0};
+multiset<int> A;
+A.insert(set1.begin(),set1.end());
+A.insert(a,a+10);
+cout<<endl;
+for(multiset<int>::iterator p=A.begin();p!=A.end();++p)
+cout<<*p<<" ";
+cin.get();
+return 0;
+}
+2////////////////////////////////////////
+#include <iostream>
+#include <set>
+#include <string>
+#include <algorithm>
+using namespace std;
+struct compare
+{
+bool operator ()(string s1,string s2)
+{
+return s1>s2;
+}///自定义一个仿函数
+};
+int main()
+{
+typedef std::set<string,compare> _SET;
+_SET s;
+s.insert(string("sfdsfd"));
+s.insert(string("apple"));
+s.insert(string("english"));
+s.insert(string("dstd"));
+cout<<"s1:"<<endl;
+std::set<string,compare>::iterator it = s.begin();
+while(it!=s.end())
+cout<<*it++<<" ";
+cout<<endl<<"s2:"<<endl;
+_SET s2;
+s2.insert(string("abc"));
+s2.insert(string("apple"));
+s2.insert(string("english"));
+it = s2.begin();
+while(it!=s2.end())
+cout<<*it++<<" ";
+cout<<endl<<endl;
+string str[10];
+string *end = set_intersection(s.begin(),s.end(),s2.begin(),s2.end(),str,compare());//求交集，返回值指向str最后一个元素的尾端
+cout<<"result of set_intersection s1,s2:"<<endl;
+string *first = str;
+while(first<end)
+cout <<*first++<<" ";
+cout<<endl<<endl<<"result of set_union of s1,s2"<<endl;
+end = std::set_union(s.begin(),s.end(),s2.begin(),s2.end(),str,compare());//并集 first = str;
+while(first<end)
+cout <<*first++<<" ";
+cout<<endl<<endl<<"result of set_difference of s2 relative to s1"<<endl;
+first = str;
+end = std::set_difference(s.begin(),s.end(),s2.begin(),s2.end(),str,compare());//s2相对于s1的差集 while(first<end)
+cout <<*first++<<" ";
+cout<<endl<<endl<<"result of set_difference of s1 relative to s2"<<endl;
+first = str;
+end = std::set_difference(s2.begin(),s2.end(),s.begin(),s.end(),str,compare());//s1相对于s2的差集
+while(first<end)
+cout <<*first++<<" ";
+cout<<endl<<endl;
+first = str;
+end = std::set_symmetric_difference(s.begin(),s.end(),s2.begin(),s2.end(),str,compare());//上面两个差集的并集 while(first<end)
+cout <<*first++<<" ";
+cout<<endl;
+}

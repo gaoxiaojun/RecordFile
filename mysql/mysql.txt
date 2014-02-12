@@ -1,0 +1,546 @@
+附MySQL的API接口：
+
+mysql_affected_rows() 返回被最新的UPDATE, DELETE或INSERT查询影响的行数。  
+mysql_close() 关闭一个服务器连接。  
+mysql_connect() 连接一个MySQL服务器。该函数不推荐；使用mysql_real_connect()代替。  
+mysql_change_user() 改变在一个打开的连接上的用户和数据库。  
+mysql_create_db() 创建一个数据库。该函数不推荐；而使用SQL命令CREATE DATABASE。  
+mysql_data_seek() 在一个查询结果集合中搜寻一任意行。  
+mysql_debug() 用给定字符串做一个DBUG_PUSH。  
+mysql_drop_db() 抛弃一个数据库。该函数不推荐；而使用SQL命令DROP DATABASE。  
+mysql_dump_debug_info() 让服务器将调试信息写入日志文件。  
+mysql_eof() 确定是否已经读到一个结果集合的最后一行。这功能被反对; mysql_errno()或mysql_error()可以相反被使用。  
+mysql_errno() 返回最近被调用的MySQL函数的出错编号。  
+mysql_error() 返回最近被调用的MySQL函数的出错消息。  
+mysql_escape_string() 用在SQL语句中的字符串的转义特殊字符。  
+mysql_fetch_field() 返回下一个表字段的类型。  
+mysql_fetch_field_direct () 返回一个表字段的类型，给出一个字段编号。  
+mysql_fetch_fields() 返回一个所有字段结构的数组。  
+mysql_fetch_lengths() 返回当前行中所有列的长度。  
+mysql_fetch_row() 从结果集合中取得下一行。  
+mysql_field_seek() 把列光标放在一个指定的列上。  
+mysql_field_count() 返回最近查询的结果列的数量。  
+mysql_field_tell() 返回用于最后一个mysql_fetch_field()的字段光标的位置。  
+mysql_free_result() 释放一个结果集合使用的内存。      //在查询完一个结果集后,要释放内存,  或者可在使用查询时,判断是否存在结果集,有的事调用mysql_free_result 
+mysql_get_client_info() 返回客户版本信息。  
+mysql_get_host_info() 返回一个描述连接的字符串。  
+mysql_get_proto_info() 返回连接使用的协议版本。  
+mysql_get_server_info() 返回服务器版本号。  
+mysql_info() 返回关于最近执行得查询的信息。  
+mysql_init() 获得或初始化一个MYSQL结构。  
+mysql_insert_id() 返回有前一个查询为一个AUTO_INCREMENT列生成的ID。  
+mysql_kill() 杀死一个给定的线程。  
+mysql_list_dbs() 返回匹配一个简单的正则表达式的数据库名。  
+mysql_list_fields() 返回匹配一个简单的正则表达式的列名。  
+mysql_list_processes() 返回当前服务器线程的一张表。  
+mysql_list_tables() 返回匹配一个简单的正则表达式的表名。  
+mysql_num_fields() 返回一个结果集合重的列的数量。  
+mysql_num_rows() 返回一个结果集合中的行的数量。  
+mysql_options() 设置对mysql_connect()的连接选项。  
+mysql_ping() 检查对服务器的连接是否正在工作，必要时重新连接。  
+mysql_query() 执行指定为一个空结尾的字符串的SQL查询。  
+mysql_real_connect() 连接一个MySQL服务器。  
+mysql_real_query() 执行指定为带计数的字符串的SQL查询。  
+mysql_reload() 告诉服务器重装授权表。  
+mysql_row_seek() 搜索在结果集合中的行，使用从mysql_row_tell()返回的值。  
+mysql_row_tell() 返回行光标位置。  
+mysql_select_db() 连接一个数据库。  
+mysql_shutdown() 关掉数据库服务器。  
+mysql_stat() 返回作为字符串的服务器状态。  
+mysql_store_result() 检索一个完整的结果集合给客户。  
+mysql_thread_id() 返回当前线程的ID。  
+mysql_use_result() 初始化一个一行一行地结果集合的检索。 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+mysql_fetch_row
+
+目录
+
+头文件
+lib库
+函数说明
+函数举例
+编辑本段
+头文件
+
+include <mysql.h>
+编辑本段
+lib库
+
+libmysql.lib和libmysql.dll
+编辑本段
+函数说明
+
+MYSQL_ROW mysql_fetch_row(MYSQL_RES *result)
+检索一个结果集合的下一行。当在mysql_store_result()之后使用时，如果没有更多的行可检索时，mysql_fetch_row()返回NULL。当在mysql_use_result()之后使用时，当没有更多的行可检索时或如果出现一个错误，mysql_fetch_row()返回NULL。
+在行中值的数量由mysql_num_fields(result)给出。如果row保存了从一个对用mysql_fetch_row()调用返回的值，指向该值的指针作为row[0]到row[mysql_num_fields(result)-1]来存取。在行中的NULL值由NULL指针指出。
+在行中字段值的长度可以通过调用mysql_fetch_lengths()获得。空字段和包含NULL的字段长度都是 0；你可以通过检查该值的指针区分他们。如果指针是NULL，字段是NULL；否则字段是空的。
+编辑本段
+函数举例
+
+MYSQL_ROW row;
+unsigned int num_fields;
+unsigned int i;
+num_fields = mysql_num_fields(result);
+while ((row = mysql_fetch_row(result)))
+{
+unsigned long *lengths;
+lengths = mysql_fetch_lengths(result);
+for(i = 0; i < num_fields; i++)
+{
+printf("[%.*s] ", (int) lengths[i], row[i] ? row[i] : "NULL");
+}
+printf("\n");
+}
+
+
+
+
+mysql_real_query
+
+目录
+
+头文件
+函数原型
+说明
+编辑本段
+头文件
+
+#include<mysql.h>
+编辑本段
+函数原型
+
+int mysql_real_query(MYSQL *mysql, const char *query, unsigned int length)
+编辑本段
+说明
+
+执行由query指向的SQL查询，它应该是一个length个字节的字符串。查询必须由一个单个的SQL语句组成。你不应该在语句后增加一个终止的分号(“;”)或\g。
+对于包含二进制数据的查询，你必须使用mysql_real_query()而不是mysql_query()，因为二进制代码数据可能包含“\0”字符，而且，mysql_real_query()比mysql_query()更快，因为它对查询字符串调用strlen()。如果查询成功，函数返回零。如果发生一个错误，函数返回非零。出错的代码及原因如下所示：
+CR_COMMANDS_OUT_OF_SYNC 命令以一个不适当的次序被执行。
+CR_SERVER_GONE_ERROR MySQL服务器关闭了。
+CR_SERVER_LOST 对服务器的连接在查询期间失去。
+CR_UNKNOWN_ERROR 发生一个未知的错误。
+
+
+
+
+
+
+
+
+
+
+
+mysql_store_result
+
+目录
+
+头文件
+lib库
+函数原型
+说明展开
+头文件
+lib库
+函数原型
+说明展开
+编辑本段
+头文件
+
+#include<mysql.h>
+编辑本段
+lib库
+
+libmysql.lib 和libmysql.dll
+编辑本段
+函数原型
+
+MYSQL_RES *mysql_store_result(MYSQL *mysql)
+编辑本段
+说明
+
+对于成功检索了数据的每个查询（SELECT、SHOW、DESCRIBE、EXPLAIN、CHECK TABLE等），必须调用mysql_store_result()或mysql_use_result() 。对于其他查询，不需要调用mysql_store_result()或mysql_use_result()，但是如果在任何情况下均调用了mysql_store_result()，它也不会导致任何伤害或性能降低。通过检查mysql_store_result()是否返回0，可检测查询是否没有结果集（以后会更多）。
+如果希望了解查询是否应返回结果集，可使用mysql_field_count()进行检查。“mysql_field_count()”。mysql_store_result()将查询的全部结果读取到客户端，分配1个MYSQL_RES结构，并将结果置于该结构中。
+如果查询未返回结果集，mysql_store_result()将返回Null指针（例如，如果查询是INSERT语句）。如果读取结果集失败，mysql_store_result()还会返回Null指针。通过检查mysql_error()是否返回非空字符串，mysql_errno()是否返回非0值，或mysql_field_count()是否返回0，可以检查是否出现了错误。如果未返回行，将返回空的结果集。（空结果集设置不同于作为返回值的空指针）。一旦调用了mysql_store_result()并获得了不是Null指针的结果，可调用mysql_num_rows()来找出结果集中的行数。
+可以调用mysql_fetch_row()来获取结果集中的行，或调用mysql_row_seek()和mysql_row_tell()来获取或设置结果集中的当前行位置。一旦完成了对结果集的操作，必须调用mysql_free_result()。
+返回值
+具有多个结果的MYSQL_RES结果集合。如果出现错误，返回NULL。
+错误
+如果成功，mysql_store_result()将复位mysql_error()和mysql_errno()。
+·         CR_COMMANDS_OUT_OF_SYNC
+以不恰当的顺序执行了命令。
+·         CR_OUT_OF_MEMORY
+内存溢出。
+·         CR_SERVER_GONE_ERROR
+MySQL服务器不可用。
+·         CR_SERVER_LOST
+在查询过程中，与服务器的连接丢失。
+·         CR_UNKNOWN_ERROR
+出现未知错误。
+
+
+
+
+
+
+
+
+mysql_store_result()与mysql_use_result()的比较
+       函数mysql_store_result()与mysql_use_result()类似，它们都有连接处理程序参数，并返回结果集。但实际上两者间的区别还是很大的。两个函数之间首要的区别在于从服务器上检索结果集的行。当调用时，mysql_store_result()立即检索所有的行，而 mysql_use_result()启动查询，但实际上并未获取任何行，mysql_store_result()假设随后会调用 mysql_fetch_row()检索记录。这些行检索的不同方法引起两者在其他方面的不同。本节加以比较，以便了解如何选择最适合应用程序的方法。
+       当mysql_store_result()从服务器上检索结果集时，就提取了行，并为之分配内存，存储到客户机中，随后调用 mysql_fetch_row()就再也不会返回错误，因为它仅仅是把行脱离了已经保留结果集的数据结构。mysql_fetch_row()返回 NULL始终表示已经到达结果集的末端。相反，mysql_use_result()本身不检索任何行，而只是启动一个逐行的检索，就是说必须对每行调用 mysql_fetch_row()来自己完成。既然如此，虽然正常情况下，mysql_fetch_row()返回NULL仍然表示此时已到达结果集的末端，但也可能表示在与服务器通信时发生错误。可通过调用mysql_errno()和mysql_error()将两者区分开来。
+       与mysql_use_result()相比，mysql_store_result()有着较高的内存和处理需求，因为是在客户机上维护整个结果集，所以内存分配和创建数据结构的耗费是非常巨大的，要冒着溢出内存的危险来检索大型结果集，如果想一次检索多个行，可用 mysql_use_result()。mysql_use_result()有着较低的内存需求，因为只需给每次处理的单行分配足够的空间。这样速度就较快，因为不必为结果集建立复杂的数据结构。另一方面，mysql_use_result()把较大的负载加到了服务器上，它必须保留结果集中的行，直到客户机看起来适合检索所有的行。这就使某些类型的客户机程序不适用mysql_use_result()：
+■在用户的请求下提前逐行进行的交互式客户机程序（不必仅仅因为用户需要喝杯咖啡而让服务器等待发送下一行）。
+■在行检索之间做了许多处理的客户机程序。在所有这些情况下，客户机程序都不能很快检索结果集的所有行，它限制了服务器，并对其他客户机程序产生负面的影响，因为检索数据的表在查询过程中是读锁定的。要更新表的客户机或要插入行的任何客户机程序都被阻塞。
+
+mysql_store_result()
+分类：编程
+2008-03-30 22:32 阅读(1488)评论(0)
+    本函数可以释放目前mysql数据库query返回所占用的内存，但是我在查找错误时还发现一个重要的现象。
+    以下的说明仅仅针对mysql_store_result()函数而言，对其它函数或者语言不作讨论。以前居然没
+注意到，mysql的查询时的返回值居然是char ＊类型的，而不是我想当然的按照数据库中原来的数据类型返回，这样作的简化
+程序的设计，还没有搞清楚有什么坏处，或许是占用较大的内存，把一个int类型的值按照string类型存放当然要花费更多的
+空间，而且从输出结果看我的推测是对的.问题随之而来如果是这样的话，那么如何快速确定某个字段的所在的内存地址是
+什么，因为不同的长度的数字用char ＊存放当然所占的空间不同，解决方法很简单，任何一个字符串后面都跟一个‘\0’作为
+字符串的结尾，因此一个两位数的int值在这里会占3个字节，最后一个字节用来存放'\0'
+12,46,34
+21,24,53
+32,55,222
+34,32,43
+    这里还发现其他几个问题，我发现所显示第一个行数据的最后一个值的地址与第二行的开始地址之间有个较多的空间
+这有可能是因为我虽然查寻少个几个字段，但是数据库却把所有字段的值全都放进来，再从内存中取所要的字段的值，因此我
+们在查询一个规模不是太大的表(字段不是太多)时select *的速度应该是最快的，因为我不需要在内容中跳过不需要显示的字段。而且如果存放返回的结果集的空间
+是一段连续的空间的话，返回的每一行数据必然要加个标记假设是'\n'作为一行数据的结束(稍等实验)。如此的话必然要遍历
+整个内容区域，这里有什么内涵呢？这要求这块内存必须连续，呵呵这里没有智能到可以离散分配内存的程度吧。这也可能
+是一般的数据库行数可以超级大，但是一个表的字段数目相对却要小很多的原因之一，当然主要原因在于关联查询。
+    但是这样的方法很明显存在又一个问题是如果把所有的字段都放进内存，必然浪费较多的存储空间，事实也是如此，
+如果结果集较大，容易造成内存溢出。所以诞生了令个处理方法mysql_use_result()，这个函数占有的内存小，因为它每次
+只处理一行数据，直到所有行处理完毕，但是这个函数的白痴之处是它必须要走完结果集中所有的行，即使你已经得到了你要
+数据它也要遍历完，真不知道这是进步还是退步。
+    又引申出一个问题如果我需要在结果集上进行计算，那mysql_use_result()不是要慢死了吗？这是还是mysql_store_
+result()更适合，但是如果我的结果集又很大，那内存又容易溢出，难道就没有两全其美的方法吗？
+
+
+
+
+
+
+
+
+
+
+mysql_field_count
+
+目录
+
+头文件
+头文件
+说明
+范例
+编辑本段
+头文件
+
+#include<mysql.h>
+编辑本段
+头文件
+
+unsigned int mysql_field_count(MYSQL *mysql);
+编辑本段
+说明
+
+返回作用在连接上的最近查询的列数。该函数的正常使用是在mysql_store_result()返回NULL（因而没有结果集指针）时。在这种情况下，可调用mysql_field_count()来判定mysql_store_result()是否应生成非空结果。这样，客户端就能采取恰当的动作，而无需知道查询是否是SELECT（或类似SELECT的）语句。在这里给出的示例中，演示了完成它的方法。
+返回表示结果集中列数的无符号整数。
+注意：另一种可选的方法是，用mysql_errno(&mysql)替换mysql_field_count(&mysql)调用。在该情况下，无论语句是否是SELECT，你将直接从mysql_store_result()查找错误，而不是从mysql_field_count()的值进行推断。
+编辑本段
+范例
+
+MYSQL_RES *result;
+unsigned int num_fields;
+unsigned int num_rows;
+if (mysql_query(&mysql,query_string))
+{
+// error
+}
+else // query succeeded, process any data returned by it
+{
+result = mysql_store_result(&mysql);
+if (result)  // there are rows
+{
+num_fields = mysql_num_fields(result);
+// retrieve rows, then call mysql_free_result(result)
+}
+else  // mysql_store_result() returned nothing; should it have?
+{
+if(mysql_field_count(&mysql) == 0)
+{
+// query does not return data
+// (it was not a SELECT)
+num_rows = mysql_affected_rows(&mysql);
+}
+else // mysql_store_result() should have returned data
+{
+fprintf(stderr, "Error: %s\n", mysql_error(&mysql));
+}
+}
+}
+开放分类：
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ mysql_num_fields与mysql_field_count的区别
+分类： linux 2010-12-16 15:09 1640人阅读 评论(1) 收藏 举报
+mysqlnullinsertquerydelete数据库
+mysql_num_fields和mysql_field_count都是获取结果中列的个数，但是这两个函数在使用的时候是存在区别的。
+
+ 
+
+先看一段代码（上篇文章提供的数据库）：
+
+[cpp] view plaincopyprint?
+#include <mysql/mysql.h>  
+#include <stdio.h>  
+#include <stdlib.h>  
+#include <string.h>  
+  
+int main()  
+{  
+    char out[100];  
+    MYSQL mysql;  
+    MYSQL_RES* res;  
+  
+    int num_fields;  
+    int count_fields;  
+    int num_rows;  
+  
+    mysql_init(&mysql);  
+    mysql_real_connect(&mysql,NULL,"root","123","ta",0,NULL,0);  
+  
+    fprintf(stdout,"--insert------------------------/n");  
+  
+    mysql_real_query(&mysql,"INSERT INTO t1 VALUES(6,'n6')",29);  
+  
+    count_fields = mysql_field_count(&mysql);  
+    sprintf(out,"insert----count_fields is %d/n",count_fields);  
+    fprintf(stdout,out);  
+  
+    res = mysql_store_result(&mysql);  
+    if(res == NULL)  
+    {  
+        fprintf(stdout,"insert---store return null/n");  
+    }  
+    else  
+    {  
+        num_fields = mysql_num_fields(res);  
+        sprintf(out,"insert---num_fields is %d/n",num_fields);  
+        fprintf(stdout,out);  
+    }  
+  
+    fprintf(stdout,"---select-----------/n");  
+  
+    mysql_real_query(&mysql,"SELECT * FROM t1",16);  
+  
+    count_fields = mysql_field_count(&mysql);  
+    sprintf(out,"select---count_fields is %d/n",count_fields);  
+    fprintf(stdout,out);  
+  
+    res = mysql_store_result(&mysql);  
+    if(res == NULL)  
+    {  
+        fprintf(stdout,"select---store return null/n");  
+    }  
+    else  
+    {  
+        num_fields = mysql_num_fields(res);  
+        sprintf(out,"select---num_fields is %d/n",num_fields);  
+        fprintf(stdout,out);  
+  
+        num_rows = mysql_num_rows(res);  
+        sprintf(out,"select---num_rows is %d/n",num_rows);  
+        fprintf(stdout,out);  
+    }  
+  
+    fprintf(stdout,"---select 0------/n");  
+  
+    mysql_real_query(&mysql,"SELECT * FROM t1 where id = 10",30);  
+  
+    count_fields = mysql_field_count(&mysql);  
+    sprintf(out,"select 0---count_fields is %d/n",count_fields);  
+    fprintf(stdout,out);  
+  
+    res = mysql_store_result(&mysql);  
+    if(res == NULL)  
+    {  
+        fprintf(stdout,"select 0---store return null/n");  
+    }  
+    else  
+    {  
+        num_fields = mysql_num_fields(res);  
+        sprintf(out,"select 0---num_fields is %d/n",num_fields);  
+        fprintf(stdout,out);  
+  
+        num_rows = mysql_num_rows(res);  
+        sprintf(out,"select 0---num_rows is %d/n",num_rows);  
+        fprintf(stdout,out);  
+    }  
+  
+    mysql_free_result(res);  
+    mysql_close(&mysql);  
+    exit(0);  
+}  
+
+ 
+
+执行结果是：
+--insert------------------------
+insert----count_fields is 0
+insert---store return null
+---select-----------
+select---count_fields is 2
+select---num_fields is 2
+select---num_rows is 7
+---select 0------
+select 0---count_fields is 2
+select 0---num_fields is 2
+select 0---num_rows is 0
+
+ 
+
+显然，当执行insert语句的时候，是没有结果返回的，因此列的个数为0，且mysql_store_result返回NULL。因此可以通过mysql_field_count()是否返回0来判断是否有结果返回，而不需要执行mysql_store_result来判断是否返回了NULL。我想，mysql_field_count()的效率肯定要比mysql_store_result()高。
+
+在这种情况下，由于没有返回结果，因此mysql_store_result()返回NULL，也就是得不到res指针，于是mysql_num_fields()函数就无法执行，缺少必要的参数。
+
+ 
+
+当执行第一条select语句的时候，返回了结果，因此mysql_field_count()和mysql_num_fields()都返回了正确的列的个数2，mysql_num_rows()返回了记录的条数7.
+
+ 
+
+当执行第二条select语句，由于表中没有 id = 0 的记录，因此mysql_num_rows返回了0表示记录数为0，但是，我们发现mysql_store_result()并没有返回NULL，mysql_num_fields()和mysql_field_count()还是返回了2.
+
+ 
+
+因此我们可以得出这样的结论：
+
+执行结果有三种情况，第一是执行insert、update和delete这样的语句的时候，是不会有任何内容返回，因此mysql_store_result()会返回一个NULL。第二，执行select或show这样的语句时，一定会有内容返回，可以取得列信息，但是记录可以为0，也可以不为0。这就像一个表，表头一定存在，但是表中可以没有数据。
+
+ 
+
+另外：
+
+mysql_affected_rows()函数的作用是，当执行update  insert  delete 时，返回影响的行数。
+
+
+
+
+
+
+
+
+
+
+
+mysql_fetch_fields
+
+目录
+
+头文件
+函数原型
+说明
+范例
+编辑本段
+头文件
+
+#include<mysql.h>
+编辑本段
+函数原型
+
+MYSQL_FIELD *mysql_fetch_fields(MYSQL_RES *result);
+编辑本段
+说明
+
+对于结果集，返回所有MYSQL_FIELD结构的数组。每个结构提供了结果集中1列的字段定义。关于结果集所有列的MYSQL_FIELD结构的数组。
+编辑本段
+范例
+
+unsigned int num_fields;
+unsigned int i;
+MYSQL_FIELD *fields;
+num_fields = mysql_num_fields(result);
+fields = mysql_fetch_fields(result);
+for(i = 0; i < num_fields; i++){  
+printf("Field %u is %s\n", i, fields[i].name);
+}
+
+
+
+
+
+
+
+
+
+
+
+mysql_fetch_row
+
+目录
+
+头文件
+lib库
+函数说明
+函数举例
+编辑本段
+头文件
+
+include <mysql.h>
+编辑本段
+lib库
+
+libmysql.lib和libmysql.dll
+编辑本段
+函数说明
+
+MYSQL_ROW mysql_fetch_row(MYSQL_RES *result)
+检索一个结果集合的下一行。当在mysql_store_result()之后使用时，如果没有更多的行可检索时，mysql_fetch_row()返回NULL。当在mysql_use_result()之后使用时，当没有更多的行可检索时或如果出现一个错误，mysql_fetch_row()返回NULL。
+在行中值的数量由mysql_num_fields(result)给出。如果row保存了从一个对用mysql_fetch_row()调用返回的值，指向该值的指针作为row[0]到row[mysql_num_fields(result)-1]来存取。在行中的NULL值由NULL指针指出。
+在行中字段值的长度可以通过调用mysql_fetch_lengths()获得。空字段和包含NULL的字段长度都是 0；你可以通过检查该值的指针区分他们。如果指针是NULL，字段是NULL；否则字段是空的。
+编辑本段
+函数举例
+
+MYSQL_ROW row;
+unsigned int num_fields;
+unsigned int i;
+num_fields = mysql_num_fields(result);
+while ((row = mysql_fetch_row(result)))
+{
+unsigned long *lengths;
+lengths = mysql_fetch_lengths(result);
+for(i = 0; i < num_fields; i++)
+{
+printf("[%.*s] ", (int) lengths[i], row[i] ? row[i] : "NULL");
+}
+printf("\n");
+}

@@ -1,0 +1,364 @@
+C/C++ code
+
+?
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93
+94
+95
+96
+/*TinyLog.h日志类头文件*/
+#pragma once
+ 
+class CTinyLog
+{
+public:
+    CTinyLog();
+    ~CTinyLog();
+    static void AddLine(const char *pData, ...);
+private:   
+    static FILE *m_pWrite;
+    static char m_LogFile[1024];
+    static CRITICAL_SECTION m_cs;
+};
+ 
+/*TinyLog.cpp日志类实现文件*/
+#include <windows.h>
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+#include "TinyLog.h"
+ 
+CTinyLog::CTinyLog()
+{   
+    InitializeCriticalSection(&m_cs);
+}
+ 
+CTinyLog::~CTinyLog()
+{
+    DeleteCriticalSection(&m_cs);
+}
+ 
+void CTinyLog::AddLine(const char *pData, ...)
+{
+    EnterCriticalSection(&m_cs);
+ 
+    ZeroMemory(m_LogFile, 1024);
+    GetModuleFileName(NULL, m_LogFile, 1024);
+ 
+    char *pFind = strrchr(m_LogFile, '\\');
+    if (pFind!=NULL)
+    {
+        strcpy(pFind+1, "Log");
+        CreateDirectory(m_LogFile, NULL);
+        strcat(m_LogFile, "\\");
+    }
+ 
+    char szTime[1024] = {0};
+    time_t   timep;   
+    struct   tm   *pTime;   
+    time(&timep);
+    pTime=localtime(&timep);
+    sprintf(szTime, "%d-%02d-%02d", 1900+pTime->tm_year,1+pTime->tm_mon, pTime->tm_mday);
+    strcat(m_LogFile, szTime);
+    strcat(m_LogFile, ".log");  
+    m_pWrite = fopen(m_LogFile, "a");
+    if (m_pWrite!=NULL)
+    {              
+        time(&timep);
+        pTime = localtime(&timep);
+        char szBuffer[1024] = {0};
+        ZeroMemory(szBuffer, 1024);
+        sprintf(szBuffer, "[%02d:%02d:%02d] ", pTime->tm_hour, pTime->tm_min, pTime->tm_sec);
+         
+        int n = 0;
+        va_list args = NULL;
+        char sprint_buf[1024] = {0};
+        va_start(args, pData);
+        n = vsprintf(sprint_buf, pData, args);
+        va_end(args);
+         
+        strcat(szBuffer, sprint_buf);
+        strcat(szBuffer, "\n");
+        fputs(szBuffer, m_pWrite);
+        fclose(m_pWrite);
+    }
+ 
+    LeaveCriticalSection(&m_cs);
+ 
+}
+ 
+FILE *CTinyLog::m_pWrite = NULL;
+char CTinyLog::m_LogFile[1024] = {0};
+CRITICAL_SECTION CTinyLog::m_cs = {0};
+ 
+/*Test.cpp主函数所在文件*/
+#include <windows.h>
+#include <stdio.h>
+#include "TinyLog.h"
+ 
+CTinyLog g_Log;
+int main()
+{    
+    CTinyLog::AddLine("this is test");
+    return 0;
+}
+
+
+自己写的一个简单日志类，麻烦大家帮我看下可能存在的问题
+1.多线程下的同步
+2.编码规范及头文件包含顺序
+3.若在DLL中使用此日志类，要注意什么
+4.如果大家发现有其它问题也欢迎批评指正，谢谢
+分享到：  
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理 回复次数：10
+
+cppdow
+cppdow
+等级：
+#1 得分：0 回复于： 2010-10-08 22:16:01
+http://topic.csdn.net/u/20100828/15/10ef941d-b91a-45e3-9aad-84997d07935d.html
+这个帖子没有回复不能结贴，大家快去接分呀
+2014年1月微软MVP申请开始啦对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+dingshaofengbinbin
+dingshaofengbinbin
+等级：
+#2 得分：0 回复于： 2010-10-08 22:29:27
+
+关注CSDN论坛微博 送CSDN积分大礼包对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+Kevin_Perkins
+Kevin_Perkins
+等级：
+#3 得分：0 回复于： 2010-10-08 22:32:54
+楼主写的还是很不错的，赞一个！
+我说两句，不知对不对。
+第一，我不明白，为什么要把文件名、缓冲区和关键代码段都声明为静态成员呢？难道不想让我在一个程序中分别按照分类写不同的日志文件？
+第二，调用AddLine写入一行日志，为什么每次都要取得目录的路径、经过一个打开文件再关闭文件的过程呢？每次都获取路径，有点多余了。每次都打开再关闭，能保证实时查看文件内容的要求，还可以接受。
+再说说楼主的问题。多线程的同步问题应该不成问题，已经为临界区做了保护，不存在访问冲突。编码规范因人而异，保持一致即可。头文件包含顺序有时会引起诸如重复定义之类的错误，一般是先包含系统目录文件，再包含用户目录文件。在DLL中使用和在EXE中使用没有什么区别吧，如果有，请告诉我。
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+healer_kx
+healer_kx
+等级：
+#4 得分：0 回复于： 2010-10-08 22:44:07
+static char m_LogFile[1024];
+？
+1， 以Win32为例，文件名就260个字符，不需要1024那么大了。
+
+2. Log里面还单写了临界区的代码，没剥离开了。
+
+3. AddLine太长了，可以拆成几个函数，以便日后函数级别的复用。
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+djh512
+djh512
+等级：
+#5 得分：0 回复于： 2010-10-08 22:58:03
+学习中
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+libinfei8848
+libinfei8848
+等级：
+#6 得分：0 回复于： 2010-10-08 23:28:02
+建议啃log4cpp等相关的源代码
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+cppdow
+cppdow
+等级：
+#7 得分：0 回复于： 2010-10-09 10:31:11
+引用 3 楼 kevin_perkins 的回复:
+楼主写的还是很不错的，赞一个！
+我说两句，不知对不对。
+第一，我不明白，为什么要把文件名、缓冲区和关键代码段都声明为静态成员呢？难道不想让我在一个程序中分别按照分类写不同的日志文件？
+第二，调用AddLine写入一行日志，为什么每次都要取得目录的路径、经过一个打开文件再关闭文件的过程呢？每次都获取路径，有点多余了。每次都打开再关闭，能保证实时查看文件内容的要求，还可以接受。
+再说说楼主的问……
+第一、因为在多线程中如果创建多个日志类实例，则可能出错，下面的代码会出错，所以我想做成单实例的(不过还没有实现):
+C/C++ code
+?
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+/*Test.cpp主函数所在文件*/
+#include <windows.h>
+#include <stdio.h>
+#include "TinyLog.h"
+ 
+DWORD WINAPI ThreadProc(LPVOID lp);
+int main()
+{      
+    HANDLE hTreads[5] = {0};
+    for (int i=0;i<5;i++)
+    {
+        hTreads[i] = CreateThread(NULL, 0, ThreadProc, (LPVOID)i, 0, NULL);
+    }
+    WaitForMultipleObjects(5, hTreads, TRUE, -1);
+    return 0;
+}
+ 
+ 
+DWORD WINAPI ThreadProc(LPVOID lp)
+{
+    //CTinyLog log放在这里程序没有问题
+    int i = (int)lp;    
+    for (;;)
+    {
+        CTinyLog log;//放在这里程序出错 
+        CTinyLog::AddLine("%d...", i);
+        Sleep(50);
+    }
+    return 0;
+}
+
+
+第二、每次都打开文件，是因为文件名是根据时间日期生成的
+
+第三、我在DLL中定义了全局CTinyLog，我担心它会被多次初始化
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+cppdow
+cppdow
+等级：
+#8 得分：0 回复于： 2010-10-09 10:33:42
+引用 4 楼 healer_kx 的回复:
+static char m_LogFile[1024];
+？
+1， 以Win32为例，文件名就260个字符，不需要1024那么大了。
+
+2. Log里面还单写了临界区的代码，没剥离开了。
+
+3. AddLine太长了，可以拆成几个函数，以便日后函数级别的复用。
+
+1、你说的对，我写1024习惯了^_^
+2、没有看明白你什么意思，可以说清楚点吗，偶巨笨的。
+3、采纳
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+cppdow
+cppdow
+等级：
+#9 得分：0 回复于： 2010-10-09 10:34:26
+引用 6 楼 libinfei8848 的回复:
+建议啃log4cpp等相关的源代码
+
+以后可能会考虑的，同样感谢

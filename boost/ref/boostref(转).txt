@@ -1,0 +1,88 @@
+发信人: meteors (刘欣), 信区: C 
+标  题: boost::ref(转) 
+发信站: BBS 碧海青天站 (Wed Nov 24 09:19:29 2004), 转信 
+  
+【 以下文字转载自 Programming 讨论区 】 
+发信人: hhuu (我爱XXX), 信区: Programming 
+标  题: boost::ref 
+发信站: BBS 水木清华站 (Sat May 25 02:03:27 2002) 
+  
+1, 简介 
+  
+    (原来确实是我错了，本来只是想简单说明一下ref为什么需要， 
+     结果例子太简单，laws提了意见，检查一下，确实词不达意。 
+     重新说明一下，请大家重新审阅。) 
+  
+     ref存在的目的，就是对于一个模版函数，在传值和传引用都 
+     可以的时候，把选择的权利下放给使用者。（如果是临时变量， 
+     就不应该用ref；否则的就应该尽量用ref。） 
+  
+     简单的想法，就是用函数重载的方法。不过这个方法没法实现。 
+     如果模版函数可以偏特化，那也是个不错的方法，可惜这个方法 
+     甚至没有进到ansi标准里面去。 
+  
+2, 使用 
+  
+     ref就是用在这样的场合，在参数上套一个ref()，显式告诉编译器 
+     这里用引用传递；否则的话，就是值传递。 
+  
+     sample: 
+  
+#include <iostream> 
+#include <boost/ref.hpp> 
+//#include <boost/type_traits.hpp> 
+using namespace std; 
+using namespace boost; 
+struct QQ{ 
+   int k; 
+}; 
+  
+template <typename T> 
+int 
+foo(T a){ 
+   //(add_reference<unwrap_reference<T>::type>::type(a)).k = 10; 
+   typedef unwrap_reference<T>::type& truetype; 
+   truetype k = a;  k.k = 10;  return 0; 
+} 
+  
+int main() 
+{ 
+   QQ huxw; 
+   foo(ref(huxw)); 
+   cout << huxw.k << endl; 
+   huxw.k = 11;  foo(huxw); 
+   cout << huxw.k << endl; 
+   return 0; 
+} 
+  
+3, 实现 
+  
+     这样一个类，效率是非常重要的，不然就是画虎不成反类犬了。;） 
+     引用传递，想想和指针传递也没什么两样啊。;) 
+  
+     对了，就是用指针实现的。 
+  
+template<class T> 
+class reference_wrapper 
+{ 
+public: 
+    typedef T type; 
+    explicit reference_wrapper(T& t): t_(&t) {} 
+    //保存下t的地址 
+    operator T& () const { return *t_; } 
+    //这里巧妙的用了一个类型转换操作符。沟通了reference_wapper和T&这两个类。 
+    T& get() const { return *t_; } 
+    T* get_pointer() const { return t_; } 
+private: 
+    T* t_; 
+}; 
+  
+     由此可见，ref和cref无非是返回了一个reference_wapper类而已。 
+  
+四， 其他 
+  
+     这个东西boost::ref，简单巧妙，确实很有意思。 
+  
+-- 
+ORDER BY fascination DESC 
+  

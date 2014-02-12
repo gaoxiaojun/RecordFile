@@ -1,0 +1,2809 @@
+对boost::Regex的初步想法
+分类： Code 2008-11-07 09:27 197人阅读 评论(0) 收藏 举报
+regexstring编程cmd
+我知道的：
+
+Regex能够帮助我方便地处理文本；
+
+我不知道的：
+
+Regex的效率究竟有多快？对于大规模的应用，是否恰当？举例实践试试！
+
+Regex对于二进制文件，如何进行匹配呢？
+
+对于通用unicode，regex似乎一定的有问题？需要本地化？
+
+文本中是“123”，那么这里的是123这样一个数字，还是1、2、3三个字符？regex处理的时候需要注意什么？getline以后，就将所有内容转换为string处理哦！（最好编程实现）
+
+ 
+
+一开始就在编译上出了错，原因是没有lib文件，按着这个帖子做了：
+
+http://www.cadcaecam.com/forum/viewthread.php?tid=14052
+
+结果boost库整个都比编译（相当耗时间呢！）
+
+其实，regex库是可以单独编译的（汗），对于急于看到程序运行结果的我来说，编译一点、用一点，最好不过了：
+
+http://www.blogjava.net/Unmi/archive/2007/06/24/125960.html
+
+仍然有问题...
+
+后来想起vcvar32.bat的有效性（只在窗口内有效），于是将这个文件拖到cmd中执行，终于成功设置了环境，和这篇帖子英雄所见略同：http://hi.baidu.com/tkblue/blog/item/3933ffc404a156cd39db49bb.html 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Boost::Regex代码示例
+分类： Code 2008-11-07 17:27 7814人阅读 评论(2) 收藏 举报
+regex正则表达式iteratorsearchtokenstring
+看一个别人给出的例子，当我们输入“select 字符串 from 字符串”的时候，会得到输出；如果不符合这个格式，就会输出error。注意：在命令行下输入的时候，按ctrl+Z、回车表示行输入结束。
+#include <cstdlib>
+#include <stdlib.h>
+#include <boost/regex.hpp>
+#include <string>
+#include <iostream>
+using namespace std;
+using namespace boost;
+regex expression("select ([a-zA-Z]*) from ([a-zA-Z]*)");
+int main(int argc, char* argv[])
+{
+    std::string in;
+    cmatch what;
+    cout << "enter test string" << endl;
+    getline(cin,in);
+    if(regex_match(in.c_str(), what, expression))
+    {
+        for(int i=0;i<what.size();i++)
+            cout<<"str :"<<what.str()<<endl;
+    }
+    else
+    {
+        cout<<"Error Input"<<endl;
+    }
+    return 0;
+}
+regex对象与regex_match()函数
+
+下面是一个检测两个字符串是否符合指定表达式的例子：
+
+#include <iostream>
+#include <cassert>
+#include <string>
+#include <boost/regex.hpp>
+using namespace std;
+using namespace boost;
+int main()
+{
+    regex reg("//d{3}([a-zA-Z]+).(//d{2}|N/A)//s//1");
+    string correct = "123Hello N/A Hello";
+    string incorrect = "123Hello 12 hello";
+    assert(regex_match(correct,reg)==true);
+    assert(regex_match(incorrect,reg)==false);
+    return 0;
+}
+reg的格式含义是：三个数字，1个单词，一个任意字符，2个数字或者字符串N/A，1个空格，然后再重复第一个单词。
+
+ 
+
+下面是一个匹配邮件地址的表达式例子：
+
+#include <iostream>
+#include <cassert>
+#include <string>
+#include <boost/regex.hpp>
+using namespace std;
+using namespace boost;
+int main()
+{
+    regex reg("//w(.+)@(.+)//.com");
+    string correct = "boluo1982107@ccc122.com";
+    assert(regex_match(correct,reg)==true);
+    return 0;
+}
+很有意思吧！
+
+regex_search()函数的使用
+
+#include <iostream> 
+#include <cassert> 
+#include <string> 
+#include <boost/regex.hpp> 
+using namespace std; 
+using namespace boost; 
+int main() 
+{ 
+    regex reg("(new)|(delete)"); 
+ smatch m; 
+    string s = "Calls to new mustbe followed by delete.  Calling simply new results in aleak!"; 
+ int new_counter = 0; 
+    int delete_counter = 0; 
+    string::const_iterator it = s.begin(); 
+//    string::const_iterator end = s.end(); 
+    while (regex_search(it,(string::const_iterator)s.end(),m,reg))  
+    { 
+        m[1].matched ? ++new_counter : ++delete_counter; 
+        it = m[0].second; 
+    } 
+    if (new_counter != delete_counter) 
+        cout<<"Leak detected!/n"; 
+    else 
+        cout<<"Seems OK.../n"; 
+    return 0; 
+}
+在上面的例子中，统计new和delete这两个单词的数目是不是一样。注意：smatch对象，它其实是一个match_results类型，分别用来记录reg中的索引是否被匹配。如果“new”被匹配了，那么m[1].matched就会为真(true)；m[0].second表示it向后移动了，继续匹配剩下的字符串。
+
+m[0]，返回的是对匹配整个正则表达式的子匹配的引用，因此可以确定这个匹配的结束点通常是下次运行regex_search函数的起始点。
+
+regex_replace()函数的使用
+
+顾名思义，它可以用于执行文本替换。它在输入数据中进行搜索，查找正则表达式的所有匹配，对于每个匹配，该算法调用match_results::format，并将结果输出到一个传递给该函数的输出迭代器(output iterator)中。
+
+下面的例子将英式拼法的colour替换为美式拼法的color。如果不使用正则表达式来进行这个拼写的修改，将会非常单调乏味，而且容易出错。问题在于单词中可能存在不同的大小写，而且单词可能还有很多的变形——例如colourize。为了正确地解决这个问题，需要把正则表达式分为3个子表达式：
+
+regex reg("(Colo)(u)(r)",boost::regex::icase|boost::regex::perl);
+ 
+
+为了在任何匹配中能够很容易地删除字母u，我们对它进行了隔离。后面的是regex构造函数的标志参数，表示这个正则表达式不区分大小写；设置格式标志过程中的一个常见错误是忽略了regex需要默认启用的那些标志，如果没有设置这些标志，那么它们就不会启用，因此通常情况下必须使用应用应该设置的所有标志。
+
+在使用regex_replace替换时，我们需要以参数的方式提供一个格式化字符串，该字符串决定如何进行替换。如果我们希望保留第一个和第三个匹配的子表达式，那么可以使用$N（N为子表达式的索引）来实现。下面是解决问题的完整代码：
+
+#include <iostream> 
+#include <cassert> 
+#include <string> 
+#include <boost/regex.hpp> 
+using namespace std; 
+using namespace boost; 
+int main() 
+{
+    regex reg("(Colo)(u)(r)",regex::icase | regex::perl);
+    string s = "Colour, colours,color,colourize";
+    s = regex_replace(s,reg,"$1$3");
+//  s = regex_replace(s,reg,"$1 wocao $3");//尝试在输出字符串中加空格   cout<<s<<endl;
+    return 0; 
+}
+关于重复和贪婪
+
+ 
+
+#include <iostream> 
+#include <cassert> 
+#include <string> 
+#include <boost/regex.hpp> 
+using namespace std; 
+using namespace boost; 
+int main() 
+{
+    regex reg("(.*)(//d{2})");
+    cmatch m;
+    const char * text = "Note that I'm 31 years old, not 32.";
+    if (regex_search(text,m,reg))
+    {
+        if (m[1].matched)
+        {
+            cout<<m[1].str()<<'/n';
+        }
+        if (m[2].matched)
+        {
+            cout<<m[2]<<'/n';
+        }
+    }
+}
+上面代码的输出结果是：
+
+Note that I'm 31, not
+
+32
+
+也就是说，正则表达式中的".*"选项贪婪地吞掉了所有的输入！从而致使后面的子表达式无法获得匹配。按照我们的想法：31应该是符合/d{2}的条件的，应该被输出！但是可惜，它被*吞掉了。在正则表达式中，+和*都是重复性贪婪的。
+
+为了非贪婪的重复，怎么办呢？可以在重复记号后面加一个问号"?"，重复就会变成非贪婪的。修改上面代码的表达式：
+
+regex reg("(.*?)(//d{2})");
+再运行程序，结果就变成：
+
+Note that I'm
+
+31
+
+明白了吧？
+
+regex_iterator的介绍和使用
+
+ 
+
+#include <iostream>  
+#include <cassert>  
+#include <string>  
+#include <boost/regex.hpp>  
+using namespace std; 
+using namespace boost; 
+class regex_callback
+{
+    int sum_;
+public:
+    regex_callback():sum_(0){}
+    template<typename T> void operator()(const T& what)
+    {
+        sum_+=atoi(what[1].str().c_str());
+    }
+    int sum() const
+    {
+        return sum_;
+    }
+};
+int main() 
+{
+    regex reg("(//d+),?");
+    string s = "1,1,2,3,5,8,13,21";
+    sregex_iterator it(s.begin(),s.end(),reg);
+    sregex_iterator end;
+    regex_callback c;
+    int sum = for_each(it,end,c).sum();
+}
+sregex_iterator是regex_iterator<std::string::const_iterator>的typedef，现在的使用方法更加清晰了。我们可以对比一下前面使用regex_search的时候，不得不在循环中手动地让起始迭代器前进，而且还要手动调用regex_search函数。
+
+regex_token_iterator的介绍和使用
+
+它和regex_iterator相似，但是它列举的是与正则表达式不匹配的字符序列，该特性对于字符串分割非常有用。当解引用regex_token_iterator时，只有被“预订”的子表达式才可以返回。下面这个例子：输入数据的条目之间用“/”分隔，要获得两个斜杠之间的数据；使用regex_token_iterator来分隔处理就特别简单，因为它的表达式简单：regex reg("/")；为了使用这个正则表达式来分割输入，需要将一个特殊的索引-1传递给regex_token_iteraotr的构造函数。
+
+ 
+
+#include <iostream>
+#include <cassert>
+#include <boost/regex.hpp>
+using namespace std;
+using namespace boost;
+int main()
+{
+    regex reg("/");
+    string s = "Split/Values/Separated/By/Slashes,";
+    vector<string> vec;
+    sregex_token_iterator it(s.begin(),s.end(),reg,-1);
+    sregex_token_iterator end;
+    while (it!=end)
+        vec.push_back(*it++);
+    assert(vec.size()==count(s.begin(),s.end(),'/')+1);
+    assert(vec[0]=="Split");
+    
+    return 0;
+}
+regex_token_iterator是一个模板类，sregex_token_iterator是迭代器类型，是regex_token_iterator<std::string::const_iterator>的typedef。在上面的程序中，每次解引用返回的都是当前的sub_match，当迭代器前进时，它会尝试再次匹配该正则表达式。
+
+ 
+
+换一个不同类型的输入，也应该能够写出程序来！
+
+ 
+
+ 
+
+#include <string>
+#include <iostream>
+#include <cassert>
+#include <boost/regex.hpp>
+using namespace std;
+using namespace boost;
+int main()
+{
+    regex reg(" ");
+    char* s="123 456 789 12345";
+//  cregex_token_iterator it;   //This is correct, too.
+    regex_token_iterator<char*> it(s,s+strlen(s),reg,-1);
+    regex_token_iterator<char*> end;
+    while (it!=end)
+    {
+        cout<<*it++<<endl;
+    }
+    return 0;
+}
+当需要反复调用regex_search时，考虑使用这两个iterator，比较方便。
+
+/A和/Z的使用
+
+如果把/A放在正则表达式的开始，把/Z放在正则表达式的最后，那么regex_search函数的行为就可以与regex_match函数的相同——也就是说，regex_search函数必须匹配所有的输入后才能匹配成功。
+
+下面的表达式通常要求所有的输入都能获得匹配，而不管使用regex_match还是regex_search：
+
+regex reg("//A//d*//Z");
+对比regex_search和regex_match的使用：
+
+ 
+
+regex reg("//d*");
+bool b=regex_match("17 is prime",reg);
+//返回失败
+regex reg("//d*");
+bool b=regex_search("17 is prime",reg);
+//返回true
+regex reg("//d*");
+bool b=regex_search("17 is prime",reg);
+//仍然返回失败
+元字符(^)的使用
+
+元字符用来表示取反。regex reg("[^13579]");它表示一个取反的字符类，可以匹配任意非奇数的字符。
+
+ 
+
+#include <iostream>
+#include <cassert>
+#include <boost/regex.hpp>
+using namespace std;
+using namespace boost;
+int main()
+{
+    regex reg("[^13579]");
+    string s="0123456789";
+    sregex_iterator it(s.begin(),s.end(),reg);
+    sregex_iterator end;
+    while (it!=end)
+        cout<<*it++;
+    return 0;
+}
+上面程序的输出结果为“02468”，如果输入字符串是“abcd”，也会全部匹配（因为它们不是奇数）。
+
+另外，元字符^还可以用来表示一行的开始，元字符$则表示一行的结束。
+
+无效正则表达式与异常抛出
+
+下面这个程序还可以当作正则表达式格式输入的练习：）
+
+ 
+
+#include <string>
+#include <iostream>
+#include <cassert>
+#include <boost/regex.hpp>
+using namespace std;
+using namespace boost;
+int main()
+{
+    cout<<"Enter a regular expression:/n";
+    string s;
+    getline(cin,s);
+    try
+    {
+        regex reg(s);
+        cout<<"Now enter a string to be matched:/n";
+        getline(cin,s);
+        if (regex_match(s,reg))
+            cout<<"That's right!/n";
+        else
+            cout<<"No, that doesn't match!";
+    }
+    catch (bad_expression & e)
+    {
+        cout<<"That's not a valid expression! Error: "<<e.what()<<endl;
+    }
+    return 0;
+}
+输入/d{5}，输入：12345，输出：That's right!（奇怪，为什么这里输入/d而不是//d呢？输入//d没有抛出异常，却不能正确匹配！如果我输入//d，而这又是一个合法的正则表达式，那么它的匹配字符串是怎样的？）
+
+输入错误的正则表达式：(/w*))，程序会抛出异常。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+分隔和截断字符串, boost string algorithm library中的split和trim
+
+http://www.boost.org/doc/libs/1_46_1/doc/html/string_algo.html
+
+这个库是个 headers only library　　这个库提供了STL没有提供的 string-related算法,  但是实现做到了可以用在任何 character 的 container上
+
+split
+
+在写在线状态的改造时候要把一个字符串中描述的几种类型拆出来, 引发了这个问题, 去标准库里找了也没找到, 后来在boost库中找到了string_algo这个库,   以下是我写的一个使用split的例子
+
+
+ 1 #include <boost/algorithm/string.hpp>
+ 2 #include <iostream>
+ 3 #include <string>
+ 4 #include <vector>
+ 5 using namespace boost::algorithm;
+ 6 using namespace std;
+ 7 int main(){
+ 8     string str("miss,you.just.call_to,say,I~love~you");
+ 9     vector<string> strVec;
+10     split(strVec, str, is_any_of(",."));
+11     vector<string>::iterator it = strVec.begin();
+12     for (; it!=strVec.end(); it++){
+13         cout << *it << endl;
+14     }
+15     return 0;
+16 }
+
+运行的结果就是都拆出来了　　miss　you  just  call to  say   I~love~you,  注意分隔符是,.  没有用~,  所有后面的I~love~you没有拆
+
+头文件统一的话就用的#include<boost/algorithm/string.hpp>    9, 10行就是split的使用方式
+
+2.　　我们用的头文件是 boost/algorithm/string.hpp,   这个头文件只用来包括其他具体的头文件, 在 algorithm/string目录下如 split的就是   boost/algorithm/string/split.hpp, 　 里面定义了几个函数模板, 应该说这里面全是函数模板,  另外还可以看到, 这就是headers only library
+
+trim
+
+在写群聊中有遇到去掉一个string当中的空格，std中没有这样的算法，在boost::string_algo中找到了trim, 但它只能去除头尾，这个也很有用， 头文件是  <boost/algorithm/string/trim.hpp> 或<boost/algorithm/string.hpp>, 写了一些trim的测试代码
+
+?
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+#include <boost/algorithm/string.hpp>
+ #include <iostream>
+ #include <string>
+  
+ using namespace boost::algorithm;
+ using namespace std;
+  
+ int main(){
+     string str = "     abc     ...     ";
+     cout << "before trim str = " << str << endl;
+     trim(str);
+     cout << "after trim  str = " << str << endl;
+  
+     string strOrigin = "12324342231436576abc0cba43455465767678878";
+     str = strOrigin;
+     cout << "before trim str = " << str << endl;
+     trim_if(str, is_any_of("1234567890"));
+     cout << "after trim  str = " << str << endl;
+     string str2 = trim_copy_if(strOrigin, is_any_of("1234567890"));
+     cout << "after trim  str2 = " << str2 << endl;
+     string str3 = trim_left_copy_if(strOrigin, is_any_of("1234567890"));
+     cout << "after trim  str3 = " << str3 << endl;
+     string str4 = trim_right_copy_if(strOrigin, is_any_of("1234567890"));
+     cout << "after trim  str4 = " << str4 << endl;
+     trim_left_if(strOrigin, is_any_of("1234567890"));
+     cout << "after tim_left , strOrigin = " << strOrigin << endl;
+     trim_right_if(strOrigin, is_any_of("1234567890"));
+     cout << "after tim_right, strOrigin = " << strOrigin << endl;
+     return 0;
+ }
+注意trim是一系列的函数,有最普通的默认去空格的trim, 也有指定去什么的trim_if, trim_left_if, 这是直接在参数指定的string上操作,也有把结果单独生成一个string的trim_copy_if, trim_left_copy_if
+
+ 
+
+boost库在unix下的安装文档, http://www.boost.org/doc/libs/1_52_0/more/getting_started/unix-variants.html, 只需要简单的执行脚本就行了,会编译链接生成相应的库,且用头文件拷到相关的目录, 我自己在运行那个./bootrap脚本的时候开始老不成功,后来 google了一下是因为其要运行的 tools/..../build.sh没有 chmod +x
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+boost::regex学习
+浏览次数：5491次 2007年09月12日 博客园 字号: 大 中 小
+分享到： QQ空间 新浪微博 腾讯微博 人人网 豆瓣网 开心网 更多 2
+
+ 
+一：编译
+boost的正则表达式需要编译（如果不需要全部Boost的功能的话，请不要build all boost，那会花掉好几个小时。我推荐仅仅build需要的库就好。）
+原有的boost 1.33似乎使用vc8编译的时候有问题。下载boost 1.34.1，使用“Visual Studio 2005 Command Prompt”，进入到boost_1_34_1libs egexuild：
+nmake vc8.mak
+OK，生成的文件在vc80下。
+
+二：学习正则表达式
+deelx_zh.rar
+不错的正则表达式的学习资料，顺便推荐一下：
+http://www.regexlab.com/ 
+这个站长还与我有个一信之缘（我写的P2P之UDP穿透NAT的原理与实现（附源代码））。站长的这个正则库在CodeProject获得了不错的评价。
+
+三：简单的例子
+    std::string regstr = "a+";
+    boost::regex expression(regstr);
+    std::string testString = "aaa";
+
+    // 匹配至少一个a
+    if( boost::regex_match(testString, expression) )
+    {
+        std::cout<< "Match" << std::endl;
+    }
+    else
+    {
+        std::cout<< "Not Match" << std::endl;
+    }
+
+四：regex_match例子代码学习
+1 我们经常会看一个字符串是不是合法的IP地址，合法的IP地址需要符合以下这个特征：
+  xxx.xxx.xxx.xxx 其中xxx是不超过255的整数
+正则表达式找到上面的这种形式的字符串相当容易，只是判断xxx是否超过255就比较困难了（因为正则表达式是处理的文本，而非数字）
+OK，我们先来处理一个数字，即：xxx。找到一种表达式来处理这个数字，并且保证这个数字不会超过255
+第一种情况：x，即只有一个数字，它可以是0～9 ，用d 表示
+第二种情况：xx，即有两个数字，它可以是00～99，用dd 表示
+第三种情况：xxx，这种情况分为两种，一种是 1xx，可以用 1dd 表示
+                                   另外一种是 2xx，这又分为两种 2[1234]d
+                                                             和 25[12345]
+好了组合起来
+1?d{1,2}|2[1234]d|25[12345]
+既可以标识一个不大于255的数字字符串
+
+嗯，我们现在需要重复这种情况既可：
+(1?d{1,2}|2[1234]d|25[12345]).(1?d{1,2}|2[1234]d|25[12345]).(1?d{1,2}|2[1234]d|25[12345]).(1?d{1,2}|2[1234]d|25[12345])
+
+呵呵，长是长了点，我试图用boost支持的子表达式缩短，但是没有达到效果，请各位了解boost的正则表达式的达人指点：
+(1?d{1,2}|2[1234]d|25[12345]).1$.1$.1$
+(参看反向索引：http://www.boost.org/libs/regex/doc/syntax_perl.html
+似乎反向只能匹配与第一个字符完全一样的字符串，与我们的需求不同)
+
+Example：
+std::string regstr = "(1?\d{1,2}|2[1234]\d|25[12345])\.(1?\d{1,2}|2[1234]\d|25[12345])\.(1?\d{1,2}|2[1234]\d|25[12345])\.(1?\d{1,2}|2[1234]\d|25[12345])";
+boost::regex expression(regstr);
+std::string testString = "192.168.4.1";
+if( boost::regex_match(testString, expression) )
+{
+    std::cout<< "This is ip address" << std::endl;
+}
+else
+{
+    std::cout<< "This is not ip address" << std::endl;
+}
+
+2 我们来看看regex_match的另外一个函数原型
+template <class ST, class SA, class Allocator, class charT, class traits>
+    bool regex_match(const basic_string<charT, ST, SA>& s,
+    match_results<typename basic_string<charT, ST, SA>::const_iterator, Allocator>& m, 
+    const basic_regex <charT, traits>& e, match_flag_type flags = match_default);
+
+template <class BidirectionalIterator, class Allocator, class charT, class traits>
+bool regex_match(BidirectionalIterator first, BidirectionalIterator last,
+                 match_results<BidirectionalIterator, Allocator>& m,
+                 const basic_regex <charT, traits>& e,
+                 match_flag_type flags = match_default);
+ 
+注意参数m，如果这个函数返回false的话，m无定义。如果返回true的话，m的定义如下
+Element
+
+Value
+
+m.size()
+
+e.mark_count()
+
+m.empty()
+
+false
+
+m.prefix().first
+
+first
+
+m.prefix().last
+
+first
+
+m.prefix().matched
+
+false
+
+m.suffix().first
+
+last
+
+m.suffix().last
+
+last
+
+m.suffix().matched
+
+false
+
+m[0].first
+
+first
+
+m[0].second
+
+last
+
+m[0].matched
+
+true if a full match was found, and false if it was a partial match (found as a result of the match_partial flag being set).
+
+m[n].first
+
+For all integers n < m.size(), the start of the sequence that matched sub-expression n. Alternatively, if sub-expression n did not participate in the match, then last.
+
+m[n].second
+
+For all integers n < m.size(), the end of the sequence that matched sub-expression n. Alternatively, if sub-expression n did not participate in the match, then last.
+
+m[n].matched
+
+For all integers n < m.size(), true if sub-expression n participated in the match, false otherwise.
+
+Example:
+std::string regstr = "(1?\d{1,2}|2[1234]\d|25[12345])\.(1?\d{1,2}|2[1234]\d|25[12345])\.(1?\d{1,2}|2[1234]\d|25[12345])\.(1?\d{1,2}|2[1234]\d|25[12345])";
+boost::regex expression(regstr);
+std::string testString = "192.168.4.1";
+boost::smatch what;
+if( boost::regex_match(testString, what, expression) )
+{
+    std::cout<< "This is ip address" << std::endl;
+    for(int i = 1;i <= 4;i++)
+    {
+        std::string msg(what[i].first, what[i].second);
+        std::cout<< i << "：" << msg.c_str() << std::endl;
+    }
+}
+else
+{
+    std::cout<< "This is not ip address" << std::endl;
+}
+这个例子会把所有的IP的单个数字答应出来：
+This is ip address
+1：192
+2：168
+3：4
+4：1
+ 五：regex_search学习
+regex_search与regex_match基本相同，只不过regex_search不要求全部匹配，即部份匹配（查找）即可。
+简单例子：
+
+std::string regstr = "(\d+)";
+boost::regex expression(regstr);
+std::string testString = "192.168.4.1";
+boost::smatch what;
+if( boost::regex_search(testString, expression) )
+{
+    std::cout<< "Have digit" << std::endl; 
+}
+上面这个例子检测给出的字符串中是否包含数字。
+
+好了，再来一个例子，用于打印出所有的数字
+
+std::string regstr = "(\d+)";
+boost::regex expression(regstr);
+std::string testString = "192.168.4.1";
+boost::smatch what;
+std::string::const_iterator start = testString.begin();
+std::string::const_iterator end = testString.end();
+while( boost::regex_search(start, end, what, expression) )
+{
+    std::cout<< "Have digit：" ; 
+    std::string msg(what[1].first, what[1].second);
+    std::cout<< msg.c_str() << std::endl;
+    start = what[0].second;
+}
+打印出：
+Have digit：192
+Have digit：168
+Have digit：4
+Have digit：1
+
+六：关于重复的贪婪
+我们先来一个例子：
+std::string regstr = "(.*)(age)(.*)(\d{2})";
+boost::regex expression(regstr);
+std::string testString = "My age is 28 His age is 27";
+boost::smatch what;
+std::string::const_iterator start = testString.begin();
+std::string::const_iterator end = testString.end();
+while( boost::regex_search(start, end, what, expression) )
+{
+
+    std::string name(what[1].first, what[1].second);
+    std::string age(what[4].first, what[4].second);
+    std::cout<< "Name:" << name.c_str() << std::endl;
+    std::cout<< "Age:" <<age.c_str() << std::endl;
+    start = what[0].second;
+}
+
+我们希望得到的是打印人名，然后打印年龄。但是效果令我们大失所望：
+Name:My age is 28 His
+Age:27
+
+嗯，查找原因：这是由于"+"号或者"*"号等重复符号带来的副作用，这些符号会消耗尽可能多的输入，使之是“贪婪”的。即正则表达式(.*)会匹配最长的串，而不是匹配最短的成功串。
+如何使得这些重复的符号不再“贪婪”，我们在重复符号后加上"?"即可。
+std::string regstr = "(.*?)(age)(.*?)(\d{2})";
+boost::regex expression(regstr);
+std::string testString = "My age is 28 His age is 27";
+boost::smatch what;
+std::string::const_iterator start = testString.begin();
+std::string::const_iterator end = testString.end();
+while( boost::regex_search(start, end, what, expression) )
+{
+
+    std::string name(what[1].first, what[1].second);
+    std::string age(what[4].first, what[4].second);
+    std::cout<< "Name:" << name.c_str() << std::endl;
+    std::cout<< "Age:" <<age.c_str() << std::endl;
+    start = what[0].second;
+}
+打印输出：
+Name:My
+Age:28
+Name: His
+Age:27
+
+七：regex_replace学习
+写了个去除左侧无效字符（空格，回车，TAB）的正则表达式。
+std::string testString = "      Hello        World  !  GoodBye  World ";
+std::string TrimLeft = "([\s\r\n\t]*)(\w*.*)";
+boost::regex expression(TrimLeft);
+testString = boost::regex_replace( testString, expression, "$2" );
+std::cout<< "TrimLeft:" << testString <<std::endl;
+打印输出：
+TrimLeft:Hello          World  !  GoodBye  World
+
+问题是去除右侧无效字符的正则表达式该怎么写？哪位大侠显个灵，帮助写写看，多谢了。
+原文链接：http://www.cnblogs.com/shootingstars/archive/2007/07/30/837522.html
+
+
+
+
+
+regex_replace使用方法
+regex_replace
+ #include <boost/regex.hpp>
+template <class traits, class charT> 
+basic_string<charT> regex_replace (const basic_string<charT>& s,
+                                   const basic_regex<charT, traits>& e,
+                                   const basic_string<charT>& fmt,
+                                   match_flag_type flags = match_default);   
+    Regex算法家族中的第三个算法是 regex_replace. 顾名思义，它是用于执行文本替换的。它在整个输入数据中进行搜索，查找正则表达式的所有匹配。对于表达式的每一个匹配，该算法调用 match_results::format 并输入结果到一个传入函数的输出迭代器。
+    我给出了一个例子，将英式拼法的 colour 替换为美式拼法 color. 不使用正则表达式来进行这个拼写更改会非常乏味，也很容易出错。问题是可能存在不同的大小写，而且会有很多单词被影响，如colourize. 要正确地解决这个问题，我们需要把正则表达式分为三个子表达式。
+boost::regex reg("(Colo)(u)(r)", boost::regex::icase|boost::regex::perl);
+    我们将要去掉的字母u独立开，为了在所有匹配中可以很容易地删掉它。另外，注意到这个正则表达式是大小写无关的，我们要把格式标志 boost::regex::icase 传给 regex 的构造函数。你还要传递你想要设置的其它标志。设置标志时一个常见的错误就是忽略了regex缺省打开的那些标志，如果你没有设置这些标志，它们不会打开，你必须设置所有你要打开的标志。
+    调用 regex_replace时，我们要以参数方式提供一个格式化字符串。该格式化字符串决定如何进行替换。在这个格式化字符串中，你可以引用匹配的子表达式，这正是我们想要的。你想保留第一个和第三个匹配的子表达式，而去掉第二个(u)。表达式 $N表示匹配的子表达式, N 为子表达式索引。因此我们的格式化串应该是 "$1$3", 表示替换文本为第一个和第三个子表达式。通过引用匹配的子表达式，我们可以保留匹配文本中的所有大小写，而如果我们用字符串来作替换文本则不能做到这一点。以下是解决这个问题的完整程序。
+ 
+#include <iostream>
+#include <string>
+#include "boost/regex.hpp"
+ 
+int main()
+{
+       boost::regex reg("(Colo)(u)(r)", boost::regex::icase|boost::regex::perl);
+       std::string s="Colour, colours, color, colourize";
+       s=boost::regex_replace(s,reg,"$1$3");
+       std::cout << s;
+}
+ 
+程序的输出是 "Color, colors, color, colorize". regex_replace 对于这样的文本替换非常有用。
+=====================
+Programming Regular Expressions in C++
+With a bit of regular expression knowledge, we can write some code to try out some of these examples. The library I use here is the Boost library. If you’ve ready any of my other articles, you know that I’m a big fan of the Boost library, for many reasons. First, the library is solid and useful. Second, because the creation of the library is headed up by the members of the C++ standards committee, many of the classes have a good shot of making it into the next official C++ standard. Thus, for these examples, I use the Boost Regex library. (You can download the complete Boost library and learn more about it at the Boost.org site.)
+Matching Versus Searching
+
+In the world of regular expressions, you’ll often find that you need two common tasks: matching and searching. That is, given a search pattern and a string, you might need to determine whether the string perfectly matches the pattern. Or you might need to determine whether the string contains the pattern. A couple examples will help explain this.
+Consider this pattern:
+[Rr]eg...r
+The brackets ([]) constitute an "or" situation; in this case, the first character can be either r or R.
+Now let’s test the following strings against this pattern:
+regularsome regular expressions are RegxyzrRegULarexpressionstring
+Does the first string match the pattern? Yes, it does. The pattern says that a string must start with either r or R, followed by eg and then any three characters, followed by r. We have exactly that with the first string. Further, does the string contain the pattern? Sure it does. It definitely contains a set of characters that match the pattern. In other words, if I search the string for the pattern, I’ll find the pattern.
+What about the second string? Does it exactly match the pattern? No. It doesn’t start with an r or R followed by eg, and so on. But what if I search the string—will I find the pattern? Yes. In fact, I’ll find the pattern in two different places.
+Now consider the third string. If you search the string, you’ll find the pattern at the beginning of the string. But what about matching? Whether this string matches the expression depends on how you code your regular expression system, as well as how you tell the system to use your regular expression pattern. Regular expression systems can be told that a "match" requires the beginning of the string to match the expression, and anything following is ignored; in that case, the third string will match the pattern. Or a system can be told that the string must not have any characters after the pattern, in which case our third string will not match the pattern. The default rule with the Boost library I’ll be demonstrating shortly is to not consider such a string a match.
+One way to be precise regarding strings that extend beyond the pattern is to use anchors. An anchor is a pattern character that represents either "start of string" or "end of string." This arrangement gives you greater control over how the pattern is interpreted, leaving no room for ambiguity. Here’s the previous expression, rewritten with anchors:
+^[Rr]eg...r$
+This pattern starts with a start-of-string character (^), which means that the pattern must exist at the start of the string. The pattern ends with the end-of-string character ($), which means that the pattern must not be followed by any characters. With this pattern, the first string, regular, definitely matches. The second string doesn’t match. And the third string doesn’t match because the final r in the pattern must end the string.
+Trying It Out
+
+Since searching and matching are so common, the Boost::Regex library has functions for both. The following code demonstrates both, using the preceding test strings as well as another, abc.
+#include <iostream>#include <boost/regex.hpp>using namespace std;void testMatch(const boost::regex &ex, const string st) { cout << "Matching " << st << endl; if (boost::regex_match(st, ex)) {  cout << " matches" << endl; } else {  cout << " doesn’t match" << endl; }}void testSearch(const boost::regex &ex, const string st) { cout << "Searching " << st << endl; string::const_iterator start, end; start = st.begin(); end = st.end(); boost::match_results<std::string::const_iterator> what; boost::match_flag_type flags = boost::match_default; while(boost::regex_search(start, end, what, ex, flags)) {  cout << " " << what.str() << endl;  start = what[0].second; }}int main(int argc, char *argv[]){ static const boost::regex ex("[Rr]eg...r"); testMatch(ex, "regular"); testMatch(ex, "abc"); testMatch(ex, "some regular expressions are Regxyzr"); testMatch(ex, "RegULarexpressionstring"); testSearch(ex, "regular"); testSearch(ex, "abc"); testSearch(ex, "some regular expressions are Regxyzr"); testSearch(ex, "RegULarexpressionstring"); return 0;}
+To make the example clear, I created two sample functions, testMatch and testSearch. The testMatch function demonstrates how to test for a match, whereas testSearch demonstrates searching. Each takes as parameters a regular expression object and a string being tested.
+Before exploring the testMatch and testSearch functions, however, take a look at the main function, and notice how I created my regular expression pattern: I simply created a new object of type boost::regex, passing my pattern string into the constructor. Easy enough. And that’s what I pass to my sample functions.
+Now look at the testMatch function, and notice how I test whether the passed-in string matches against the regular expression pattern:
+if (boost::regex_match(st, ex)) {
+The boost::regex_match function is a template function that takes as a parameter the string being tested, followed by the regular expression object. That’s it! This function returns a Boolean value if the string matches the expression. Pretty simple.
+Searching is a bit more complex, but still shouldn’t cause a loss of hair and an increase in blood pressure. The boost::regex_search function needs an iterator provided by the string you’re testing.
+NOTE
+Remember, the string class in C++ includes an iterator for moving through the string. To get the iterator, call the begin() method of your string:
+start = st.begin();
+NOTE
+To get an iterator representing the end of the string (against which the first iterator can be compared), call the end method:
+end = st.end();
+NOTE
+Finally, note that these two iterators are of type string::const_iterator.
+The boost::regex_search function returns a Boolean value denoting whether the function found another instance of the pattern in the string. Thus, your best bet is to use boost::regex_search within a while loop.
+You need to pass the two string iterators to the regex_search function, followed by an object that will contain the results of the search (more on that shortly), followed by the regular expression object, and finally a set of flags specifying how to perform the search.
+The search results are placed in a variable of template type boost::match_results. The template parameter is the same as the iterator; thus, the full type for the result is as follows:
+boost::match_results<std::string::const_iterator>
+Inside the while loop, where regex_search found an instance of the pattern, you can access the current result through the results variable, which I called what in the example code. The what variable includes a function, str(), which returns the substring that matched the pattern.
+Finally, to move forward in the loop (and avoid an infinite loop!), you need to advance the iterator manually. The what variable works like an array, and contains instances of a class called sub_match. To advance the pointer, you access the first element, what[0], and from there you grab the element called second:
+start = what[0].second;
+This technique will advance the iterator to the next position in the string.
+TIP
+In case you’re curious, what[0].first is an iterator pointing within the original string to the position where the matched substring occurs; what[0].second is an iterator pointing to the first character following the matching substring. Thus, setting the start variable to what[0].second starts the search over again just following the located substring.
+Here’s the output for the preceding listing:
+Matching regular matchesMatching abc doesn’t matchMatching some regular expressions are Regxyzr doesn’t matchMatching RegULarexpressionstring doesn’t matchSearching regular regularSearching abcSearching some regular expressions are Regxyzr regular RegxyzrSearching RegULarexpressionstring RegULar
+Replacing Strings
+
+Another common use of regular expressions is in finding substrings that match a pattern and replacing those strings with another string. The following code demonstrates this technique; I’m demonstrating two different approaches in separate sample functions, test1 and test2.
+#include <iostream>#include <sstream>#include <boost/regex.hpp>#include <iterator>using namespace std;void test1() { static const boost::regex ex("[Ss].{0,1}e"); string initial = "She sells sea shells by the sea shore"; string fmt = "-$&-"; string result = boost::regex_replace(initial, ex, fmt); cout << result << endl;}void test2() { static const boost::regex ex("\\w*\\.cpp"); string initial = "main.cpp main.h customer.cpp customer.h account.cpp account.h"; string fmt = "$&\n"; std::ostringstream res(std::ios::out); std::ostream_iterator<char> ores(res); boost::regex_replace(ores, initial.begin(), initial.end(),  ex, fmt, boost::match_default | boost::format_no_copy); cout << res.str() << endl;}int main(int argc, char *argv[]){ test1(); cout << endl; test2();}
+In the test1 function, I’m creating a regular expression that matches either a capital or lowercase S, followed by one or zero single characters followed by e. In other words, I’m matching Se and se, possibly with a single character between the two letters.
+I then create the string that I’m going to replace; I give this string the variable name initial. After that, I create a format string that specifies what I want to do with the substrings that match. Just to demonstrate what’s happening, I’m simply copying the matched substring, but surrounding it with two minus (-) signs. The $& refers to the matched substring; you can find the whole list here. Thus, if the matched substring is She, then the string will be replaced with -She-.
+This example isn’t particularly interesting, but it demonstrates a simple replacement. The call to do the replacing is regex_replace; I pass as parameters the initial string, the regular expression, and the format string. The function returns a string, which I save in the variable called result.
+My input string, then, is this:
+She sells sea shells by the sea shore
+The regular expression will match She, se, se, she, sea. The format string says to replace each of these with the itself surrounded by minus signs: -She-, -se-, -se-, -she-, and –sea-, resulting in a final string:
+-She- -se-lls -se-a -she-lls by the -se-a shore
+The second sample function, test2, is a bit more useful example. It takes an input string consisting of a bunch of filenames, in this case various .cpp and .h files. I’m going to search the string for .cpp filenames. Here’s the regular expression I’m using:
+\w*\.cpp
+The \w in this expression works much like the . character except that, instead of matching just any character, it matches only characters that are letters, digits, or underscores. The * means that I’ll match multiple characters. After the set of letters, numbers, and underscores, I’m matching a period. Since the period is already a special character, I need to inform the regular expression engine that I really do want a period. Normally a period is a wildcard character matching anything; to find a real period, I precede it with a backslash to get the \. pattern. Next, I follow the pattern with cpp.
+To recap, I’ll match anything that contains a string of characters consisting of letters, numbers, and underscores, followed by a period and then cpp.
+Notice, however, that in the code I used double backslashes for the regular expression:
+\\w*\\.cpp
+The reason is that the regular expression requires single slashes, but to get single slashes into a string in C++, you have to use double slashes.
+In this code, I’ll replace each matched substring with this:
+$&\n
+As before, the $& denotes the matched substring. The \n denotes a newline.
+But what about the parts of the string that don’t match? In the previous example, they were just left intact, as you can see in the output:
+-She- -se-lls -se-a -she-lls by the -se-a shore
+With the present example, however, I want the unmatched parts to be thrown out. I don’t want them to appear in the modified string. To make that happen, I set some options with the regex_replace function. But to use those options, I need to use another form of the function. This form takes as parameters an iterator into an output stream that will receive the modified string (in contrast to the previous form, which simply returned a string); an iterator denoting the start and end of the string being searched; the regular expression object; the format string; and finally the options.
+To set up the receiving string, I need to use a stream; thus, I use a stringstream object. Then I create an iterator for the object:
+std::ostringstream res(std::ios::out);std::ostream_iterator<char> ores(res);
+I called my iterator object ores, and that’s what I pass as the first parameter to the regex_replace function.
+When you compile and run the code, here’s the output you’ll see from the test2 function:
+main.cppcustomer.cppaccount.cpp
+This output is one string with three substrings, each followed by a newline \n character. Thus, it worked: With a single regular expression, we were able to go through a list of filenames separated by spaces all in a single string, and get only the .cpp files. We could have done anything we wanted; for example, we could have used a space instead of \n in the format string so the filenames would remain on a single line. It’s up to you and the requirements of your project.
+Moving Forward
+In this article, I’ve barely scratched the surface of what you can do with regular expressions. When you embed sets of parentheses (()) in your patterns, you can locate patterns as well as portions of patterns; then you can use these substrings in replacements, for example.
+That’s just the beginning. Regular expressions possess an enormous amount of string-processing power. Entire books have been written on the subject, and I encourage you to check out the sources I mentioned earlier. One exercise you might try is to come up with a regular expression that strips away all the tags from an HTML file, leaving only the plain text. Or one that creates a simpler version of the text for use on small device screens. Whereas somebody not familiar with regular expressions might be inclined to start writing some complex (and possibly bug-ridden) algorithms to solve such problems, they can often be solved with simple regular expressions. Of course, some regular expressions are themselves complex and bug-ridden, but in my experience, the bugs in regular expressions are usually easier to manage, and in the end far less time is spent developing with regular expressions than without.
+Regular expressions are an exciting topic and extremely useful. When you master them and put them to use with the help of a good library such as boost::regex, you’ll wonder how you ever lived without them.
+
+
+
+
+
+
+[转]Boost学习之正则表达式--regex
+boost::regex类为C++提供了完整的正则表达式支持，并且已被接收为C++0x标准库。它同时也在Boost库中扮演着极重要的角色，不少Boost子库都需要它的支持，有不少人甚至就是为了它才下载使用Boost的。
+注意使用Boost.Regex需要预先编译
+完整编译请参考本站编译Boost的文章
+如果只要编译Regex库，有两种方法(参考链接):
+在Boost根目录下运行bjam --toolset=<编译器名> --with-regex 其它参数
+到<boost>\libs egex\build里，找到对应编译器的makefile，然后make -f xxxx.mak
+使用
+Boost.Regex手里有七种武器和两****宝
+其中的七种武器是:
+regex_match 函数regex_search 函数regex_replace 函数regex_format 函数regex_grep 函数regex_split 函数RegEx 类
+每种武器都又有诸多变化（每个函数都分别以C字符串类型、std::string类型、迭代器类型作为参数重载）,不过后面四种武器因年久失修已不建议使用.
+两****宝是:
+regex_iterator 迭代器regex_token_iterator 迭代器
+这两****宝是整个Boost.Regex的灵魂，用熟它们以后那是“摘花飞叶即可伤人”啊~~
+回到正题，下面边写边学。所需头文件:#include <boost/regex.hpp>
+ 
+示例代码:
+先准备一个测试用的数据备用，如果各位有雅兴可以参考本站的另一篇文章《Google Testing》使用Google Testing框架来做这个实验，花一样时间学两样啊~~
+#include <iostream>
+#include <boost/regex.hpp>
+ 
+using namespace std;
+int main(int argc, char* argv[])
+{    //( 1 )   ((  3  )  2 )((  5 )4)(    6    )   
+    //(\w+)://((\w+\.)*\w+)((/\w*)*)(/\w+\.\w+)?
+    //^协议://网址(x.x...x)/路径(n个\字串)/网页文件(xxx.xxx)
+    const char *szReg = "(\\w+)://((\\w+\\.)*\\w+)((/\\w*)*)(/\\w+\\.\\w+)?";
+    const char *szStr = "http://www.cppprog.com/2009/0112/48.html";
+ 
+    //练习代码...
+   
+   
+    cin.get(); //暂停
+}
+#include <iostream>#include <boost/regex.hpp>using namespace std;int main(int argc, char* argv[]){ //( 1 ) (( 3 ) 2 )(( 5 )4)( 6 ) //(\w+)://((\w+\.)*\w+)((/\w*)*)(/\w+\.\w+)? //^协议://网址(x.x...x)/路径(n个\字串)/网页文件(xxx.xxx) const char *szReg = "(\\w+)://((\\w+\\.)*\\w+)((/\\w*)*)(/\\w+\\.\\w+)?"; const char *szStr = "http://www.cppprog.com/2009/0112/48.html"; //练习代码... cin.get(); //暂停}
+ 
+1.字符串匹配
+要确定一行字符串是否与指定的正则表达式匹配，使用regex_match。
+下面这个代码可以验证szStr字串（定义在上面）是否与szReg匹配。
+{    //字符串匹配
+    boost::regex reg( szReg );
+    bool r=boost::regex_match( szStr , reg);
+    assert(r); //是否匹配
+}
+{ //字符串匹配 boost::regex reg( szReg ); bool r=boost::regex_match( szStr , reg); assert(r); //是否匹配 }
+
+boost::regex的构造函数中还可以加入标记参数用于指定它的行为，如:
+//指定使用perl语法（默认），忽略大小写。
+boost::regex reg1( szReg, boost::regex::perl|boost::regex::icase );
+//指定使用POSIX扩展语法（其实也差不多）
+boost::regex reg2( szReg, boost::regex::extended );
+//指定使用perl语法（默认），忽略大小写。boost::regex reg1( szReg, boost::regex::perl|boost::regex::icase );//指定使用POSIX扩展语法（其实也差不多）boost::regex reg2( szReg, boost::regex::extended );
+
+
+下面这个代码不仅验证是否匹配，而且可以从中提取出正则表达式括号对应的子串。
+{    //提取子串
+    boost::cmatch mat;
+    boost::regex reg( szStr );
+    bool r=boost::regex_match( szStr, mat, reg);
+    if(r) //如果匹配成功
+    {
+        //显示所有子串
+        for(boost::cmatch::iterator itr=mat.begin(); itr!=mat.end(); ++itr)
+        {
+            //       指向子串对应首位置        指向子串对应尾位置          子串内容
+            cout << itr->first-szStr << ' ' << itr->second-szStr << ' ' << *itr << endl;
+        }
+    }
+    //也可直接取指定位置信息
+    if(mat[4].matched) cout << "Path is" << mat[4] << endl;
+}
+{ //提取子串 boost::cmatch mat; boost::regex reg( szStr ); bool r=boost::regex_match( szStr, mat, reg); if(r) //如果匹配成功 { //显示所有子串 for(boost::cmatch::iterator itr=mat.begin(); itr!=mat.end(); ++itr) { // 指向子串对应首位置 指向子串对应尾位置 子串内容 cout << itr->first-szStr << ' ' << itr->second-szStr << ' ' << *itr << endl; } } //也可直接取指定位置信息 if(mat[4].matched) cout << "Path is" << mat[4] << endl; }
+
+其中，boost::cmatch是一个针对C字符串的特化版本，它还有另三位兄弟,如下:
+typedef match_results<const char*> cmatch;typedef match_results<std::string::const_iterator> smatch;typedef match_results<const wchar_t*> wcmatch;typedef match_results<std::wstring::const_iterator> wsmatch;
+
+可以把match_results看成是一个sub_match的容器，同时它还提供了format方法来代替regex_format函数。
+一个sub_match就是一个子串，它从std::pair<BidiIterator, BidiIterator>继承而来，这个迭代器pair里的first和second分别指向了这个子串开始和结尾所在位置。同时，sub_match又提供了str()，length()方法来返回整个子串。
+ 
+2.查找字符串
+regex_match只验证是否完全匹配，如果想从一大串字符串里找出匹配的一小段字符串（比如从网页文件里找超链接），这时就要使用regex_search了。
+下面这段代码从szStr中找数字
+{ //查找
+    boost::cmatch mat;
+    boost::regex reg( "\\d+" );    //查找字符串里的数字
+    if(boost::regex_search(szStr, mat, reg))
+    {
+        cout << "searched:" << mat[0] << endl;
+    }
+}
+{ //查找 boost::cmatch mat; boost::regex reg( "\\d+" ); //查找字符串里的数字 if(boost::regex_search(szStr, mat, reg)) { cout << "searched:" << mat[0] << endl; } }
+ 
+3.替换
+regex_replace提供了简便的方法来部分替换源字符串
+正则表达式中，使用$1~$9（或\1~\9）表示第几个子串,$&表示整个串，$`表示第一个串,$'表示最后未处理的串。
+{ //替换1，把上面的HTTP的URL转成FTP的
+    boost::regex reg( szReg );
+    string s = boost::regex_replace( string(szStr), reg, "ftp://$2$5");
+    cout << "ftp site:"<< s << endl;
+}
+{ //替换1，把上面的HTTP的URL转成FTP的 boost::regex reg( szReg ); string s = boost::regex_replace( string(szStr), reg, "ftp://$2$5"); cout << "ftp site:"<< s << endl; }
+
+正则表达式中，使用(?1~?9新字串)表示把第几个子串替换成新字串
+{ //替换2，使用format_all参数把<>&全部转换成网页字符
+    string s1 = "(<)|(>)|(&)";
+    string s2 = "(?1&lt;)(?2&gt;)(?3&amp;)";
+    boost::regex reg( s1 );
+    string s = boost::regex_replace( string("cout << a&b << endl;"), reg, s2, boost::match_default | boost::format_all);
+    cout << "HTML:"<< s << endl;
+}
+{ //替换2，使用format_all参数把<>&全部转换成网页字符 string s1 = "(<)|(>)|(&)"; string s2 = "(?1&lt;)(?2&gt;)(?3&amp;)"; boost::regex reg( s1 ); string s = boost::regex_replace( string("cout << a&b << endl;"), reg, s2, boost::match_default | boost::format_all); cout << "HTML:"<< s << endl; }
+
+ 
+4.使用regex_iterator查找
+    对应于C字符串和C++字符串以及宽字符，regex_iterator同样也有四个特化:
+    typedef regex_iterator<const char*> cregex_iterator;    typedef regex_iterator<std::string::const_iterator> sregex_iterator;    typedef regex_iterator<const wchar_t*> wcregex_iterator;    typedef regex_iterator<std::wstring::const_iterator> wsregex_iterator;
+
+    这个迭代器的value_type定义是一个match_results。
+{ //使用迭代器找出所有数字
+    boost::regex reg( "\\d+" );    //查找字符串里的数字
+    boost::cregex_iterator itrBegin(szStr, szStr+strlen(szStr), reg);
+    boost::cregex_iterator itrEnd;
+    for(boost::cregex_iterator itr=itrBegin; itr!=itrEnd; ++itr)
+    {
+            //       指向子串对应首位置        指向子串对应尾位置          子串内容
+            cout << (*itr)[0].first-szStr << ' ' << (*itr)[0].second-szStr << ' ' << *itr << endl;
+    }
+}
+{ //使用迭代器找出所有数字 boost::regex reg( "\\d+" ); //查找字符串里的数字 boost::cregex_iterator itrBegin(szStr, szStr+strlen(szStr), reg); boost::cregex_iterator itrEnd; for(boost::cregex_iterator itr=itrBegin; itr!=itrEnd; ++itr) { // 指向子串对应首位置 指向子串对应尾位置 子串内容 cout << (*itr)[0].first-szStr << ' ' << (*itr)[0].second-szStr << ' ' << *itr << endl; } }
+
+    Boost.Regex也提供了make_regex_iterator函数简化regex_iterator的构造，如上面的itrBegin可以写成:
+itrBegin = make_regex_iterator(szStr,reg);
+ 
+5.使用regex_token_iterator拆分字符串
+    它同样也有四个特化，形式和上面类似，就不再写一遍骗篇幅了。
+    这个迭代器的value_type定义是一个sub_match。
+{ //使用迭代器拆分字符串
+    boost::regex reg("/");  //按/符拆分字符串
+    boost::cregex_token_iterator itrBegin(szStr, szStr+strlen(szStr), reg,-1);
+    boost::cregex_token_iterator itrEnd;
+    for(boost::cregex_token_iterator itr=itrBegin; itr!=itrEnd; ++itr)
+    {
+        cout << *itr << endl;
+    }
+}
+{ //使用迭代器拆分字符串 boost::regex reg("/"); //按/符拆分字符串 boost::cregex_token_iterator itrBegin(szStr, szStr+strlen(szStr), reg,-1); boost::cregex_token_iterator itrEnd; for(boost::cregex_token_iterator itr=itrBegin; itr!=itrEnd; ++itr) { cout << *itr << endl; } }
+
+    Boost.Regex也提供了make_regex_token_iterator函数简化regex_token_iterator的构造，最后的那个参数-1表示以reg为分隔标志拆分字符串，如果不是-1则表示取第几个子串，并且可以使用数组来表示同时要取几个子串，例如:
+{ //使用迭代器拆分字符串2
+    boost::regex reg("(.)/(.)");  //取/的前一字符和后一字符（这个字符串形象貌似有点邪恶-_-）
+    int subs[] = {1,2};        // 第一子串和第二子串
+    boost::cregex_token_iterator itrBegin = make_regex_token_iterator(szStr,reg,subs); //使用-1参数时拆分，使用其它数字时表示取第几个子串，可使用数组取多个串
+    boost::cregex_token_iterator itrEnd;
+    for(boost::cregex_token_iterator itr=itrBegin; itr!=itrEnd; ++itr)
+    {
+        cout << *itr << endl;
+    }
+}
+{ //使用迭代器拆分字符串2 boost::regex reg("(.)/(.)"); //取/的前一字符和后一字符（这个字符串形象貌似有点邪恶-_-） int subs[] = {1,2}; // 第一子串和第二子串 boost::cregex_token_iterator itrBegin = make_regex_token_iterator(szStr,reg,subs); //使用-1参数时拆分，使用其它数字时表示取第几个子串，可使用数组取多个串 boost::cregex_token_iterator itrEnd; for(boost::cregex_token_iterator itr=itrBegin; itr!=itrEnd; ++itr) { cout << *itr << endl; } }
+完整测试代码:
+#include <iostream>
+#include <boost/regex.hpp>
+ 
+using namespace std;
+int main(int argc, char* argv[])
+{    //( 1 )   ((  3  )  2 )((  5 )4)(    6    )   
+    //(\w+)://((\w+\.)*\w+)((/\w*)*)(/\w+\.\w+)?
+    //^协议://网址(x.x...x)/路径(n个\字串)/网页文件(xxx.xxx)
+    const char *szReg = "(\\w+)://((\\w+\\.)*\\w+)((/\\w*)*)(/\\w+\\.\\w+)?";
+    const char *szStr = "http://www.cppprog.com/2009/0112/48.html";
+ 
+    {    //字符串匹配
+        boost::regex reg( szReg );
+        bool r=boost::regex_match( szStr , reg);
+        assert(r);
+    }
+ 
+    {    //提取子串
+        boost::cmatch mat;
+        boost::regex reg( szReg );
+        bool r=boost::regex_match( szStr, mat, reg);
+        if(r) //如果匹配成功
+        {
+            //显示所有子串
+            for(boost::cmatch::iterator itr=mat.begin(); itr!=mat.end(); ++itr)
+            {
+                //       指向子串对应首位置        指向子串对应尾位置          子串内容
+                cout << itr->first-szStr << ' ' << itr->second-szStr << ' ' << *itr << endl;
+            }
+        }
+        //也可直接取指定位置信息
+        if(mat[4].matched) cout << "Path is" << mat[4] << endl;
+    }
+ 
+    { //查找
+        boost::cmatch mat;
+        boost::regex reg( "\\d+" );    //查找字符串里的数字
+        if(boost::regex_search(szStr, mat, reg))
+        {
+            cout << "searched:" << mat[0] << endl;
+        }
+    }
+ 
+    { //替换
+        boost::regex reg( szReg );
+        string s = boost::regex_replace( string(szStr), reg, "ftp://$2$5");
+        cout << "ftp site:"<< s << endl;
+    }
+    { //替换2，把<>&转换成网页字符
+        string s1 = "(<)|(>)|(&)";
+        string s2 = "(?1&lt;)(?2&gt;)(?3&amp;)";
+        boost::regex reg( s1 );
+        string s = boost::regex_replace( string("cout << a&b << endl;"), reg, s2, boost::match_default | boost::format_all);
+        cout << "HTML:"<< s << endl;
+    }
+ 
+    { //使用迭代器找出所有数字
+        boost::regex reg( "\\d+" );    //查找字符串里的数字
+        boost::cregex_iterator itrBegin = make_regex_iterator(szStr,reg); //(szStr, szStr+strlen(szStr), reg);
+        boost::cregex_iterator itrEnd;
+        for(boost::cregex_iterator itr=itrBegin; itr!=itrEnd; ++itr)
+        {
+                //       指向子串对应首位置        指向子串对应尾位置          子串内容
+                cout << (*itr)[0].first-szStr << ' ' << (*itr)[0].second-szStr << ' ' << *itr << endl;
+        }
+    }
+ 
+    { //使用迭代器拆分字符串
+        boost::regex reg("/");  //按/符拆分字符串
+        boost::cregex_token_iterator itrBegin = make_regex_token_iterator(szStr,reg,-1); //使用-1参数时拆分，使用其它数字时表示取第几个子串，可使用数组取多个串
+        boost::cregex_token_iterator itrEnd;
+        for(boost::cregex_token_iterator itr=itrBegin; itr!=itrEnd; ++itr)
+        {
+            cout << *itr << endl;
+        }
+    }
+ 
+    { //使用迭代器拆分字符串2
+        boost::regex reg("(.)/(.)");  //取/的前一字符和后一字符（这个字符串形象貌似有点邪恶-_-）
+        int subs[] = {1,2};        // 第一子串和第二子串
+        boost::cregex_token_iterator itrBegin = make_regex_token_iterator(szStr,reg,subs); //使用-1参数时拆分，使用其它数字时表示取第几个子串，可使用数组取多个串
+        boost::cregex_token_iterator itrEnd;
+        for(boost::cregex_token_iterator itr=itrBegin; itr!=itrEnd; ++itr)
+        {
+            cout << *itr << endl;
+        }
+    }
+ 
+ 
+    cin.get();
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+boost之lexical_cast简易说明
+作者: habadog 日期: 2011 年 05 月 07 日 发表评论 (0)查看评论
+boost之lexical_cast
+
+一、lexical_cast的作用
+lexical_cast使用统一的接口实现字符串与目标类型之间的转换。
+
+二、lexical_cast与c/c++提供类似接口的比较
+标准c家族中包含此类函数，例如atoi与itoa等，它们的缺点是：
+（1）各个转换都是单向的，双向转换为不同函数，各种转换函数不同，接口众多；
+（2）仅支持基础数据类型的子集，如int，long，double；
+（3）不能提供统一的接口，易用性差；
+
+c++中提供了stringstream，使用它进行格式转换可读性较差，使用起点较高，只是简单的转换，stringstream太重量级。
+
+boost提供了lexical_cast，使用统一接口形式实现任意类型之间的转换，增强了易用性。但如果需要严密控制精度的转换，仍然推荐使用stringstream；数值之间的转换，推荐使用numeric_cast。
+
+三、lexical_cast的接口形式
+
+?
+1
+2
+3
+template<typename target,="" typename="" source="">
+Target lexical_cast(const Source& arg);
+</typename>
+四、lexical_cast的样例代码
+
+?
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+#include "iostream"
+#include "boost/lexical_cast.hpp" // 需要包含的头文件
+ 
+using boost::lexical_cast;
+using boost::bad_lexical_cast;
+using namespace std;
+ 
+int main()
+{
+    char* p="32768";
+    int i=0;
+    try
+    {
+        i=lexical_cast<int>(p); // 将字符串转化为整数
+    }
+    catch(bad_lexical_cast&)    // 转换失败会抛出一个异常
+    {
+        i=0;
+    }
+    cout << i << endl;
+    return i;
+}
+</int>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+由boost::lexical_cast引发的一个问题
+2008-11-27 09:28:32　来源:不详　作者:佚名
+中午同事碰见一个关于使用boost::lexical_cast产生异常的问题，关键代码如下
+
+
+中午同事碰见一个关于使用boost::lexical_cast产生异常的问题，关键代码如下 
+
+string str(8,'\0'); 
+strncpy(&str.at(0),"1234567",7); 
+cout << lexical_cast<int>(str) << endl; 
+
+结果运行的时候发生如下异常 
+
+terminate called after throwing an instance of 'boost::bad_lexical_cast' 
+what(): bad lexical cast: source type value could not be interpreted as target 
+
+我们知道boost::lexical_cast最终使用的stringstream实现的数值类型转换，所以，我们使用如下例子，做测试 
+
+stringstream ss; 
+ss << str; 
+ss >> result; 
+cout << "new Result: " << result << endl; 
+
+编译运行后，输出 
+
+new Result: 1234567 
+
+可以正常显示，好像没有问题， 
+
+我们察看一下boost的源代码 
+
+vim /usr/include/boost/lexical_cast.hpp 
+
+察看lexical_cast函数 
+
+template<typename Target, typename Source> 
+Target lexical_cast(Source arg) 
+{ 
+detail::lexical_stream<Target, Source> interpreter; 
+Target result; 
+
+if(!(interpreter << arg && interpreter >> result)) 
+throw_exception(bad_lexical_cast(typeid(Target), typeid(Source))); 
+return result; 
+} 
+
+可见lexical_cast函数非常简单，就是具体执行operator<<和operator>>两个操作，只要这两个操作有一个失败就抛出一个异常，为了确认是那步出的错，我们在程序中手工执行这两个操作。代码如下 
+
+detail::lexical_stream<int, string> interpreter; 
+int result; 
+
+if(!(interpreter << str )) 
+{ 
+cout << "Error 1" << endl; 
+} 
+if(!(interpreter >> result)) 
+{ 
+cout << "Error 2" << endl; 
+} 
+cout << result << endl; 
+
+编译运行后输出 
+
+Error 2 
+
+从这里我们知道，lexical_cast是在执行输出流的时候发生的问题，察看detail的operator>>函数，其源代码如下 
+
+template<typename InputStreamable> 
+bool operator>>(InputStreamable &output) 
+{ 
+return !is_pointer<InputStreamable>::value && 
+stream >> output && 
+(stream >> std::ws).eof(); 
+} 
+
+根据以上代码和我们使用stringstream做的测试，基本上可以确定在stream>>output（包括次步）都是正确的，可能出现问题的是(stream >> std::ws).eof(); 
+
+这里解释下std::ws和stringstring::eof()函数 
+
+Std::ws函数声明在 
+
+/usr/include/c++/3.4.4/bits/istream.tcc 
+
+源代码如下 
+
+// 27.6.1.4 Standard basic_istream manipulators 
+template<typename _CharT, typename _Traits> 
+basic_istream<_CharT,_Traits>& 
+ws(basic_istream<_CharT,_Traits>& __in) 
+{ 
+typedef basic_istream<_CharT, _Traits> __istream_type; 
+typedef typename __istream_type::__streambuf_type __streambuf_type; 
+typedef typename __istream_type::__ctype_type __ctype_type; 
+typedef typename __istream_type::int_type __int_type; 
+
+const __ctype_type& __ct = use_facet<__ctype_type>(__in.getloc()); 
+const __int_type __eof = _Traits::eof(); 
+__streambuf_type* __sb = __in.rdbuf(); 
+__int_type __c = __sb->sgetc(); 
+
+while (!_Traits::eq_int_type(__c, __eof) 
+&& __ct.is(ctype_base::space, _Traits::to_char_type(__c))) 
+__c = __sb->snextc(); 
+
+if (_Traits::eq_int_type(__c, __eof)) 
+__in.setstate(ios_base::eofbit); 
+return __in; 
+} 
+
+主要作用是过滤输入流中的空格，\n\r等字符。stream >> std::ws目的就是把输入流中转换完整形后的剩余流内容（假如有的话）写入std::ws，当然只能写入其中的空格和\n\r等字符。 
+
+stringstring::eof()函数参考 http://www.cppreference.com/wiki/io/eof 部分 
+
+该函数的主要作用是，如果到达流的结束位置返回true，否则返回false 
+
+根据以上信息，我们编写测试用例 
+
+stringstream ss; 
+ss << str; 
+ss >> result; 
+cout << "new Result: " << result << endl; 
+
+cout << ss.eof() << endl; 
+cout << (ss >> std::ws).eof() << endl; 
+
+编译运行后输出 
+
+new Result: 1234567 
+
+0 
+
+0 
+
+由此可见，虽然我们使用ss时，可以输出想要的正确结果，但是我们缺少最后的安全验证，而boost::lexical_cast就做了这方面的验证。 
+
+其实例子中的’\0’在开始的时候，起了不小的误导作用，开始以为是boost::lexical_cast无法处理最后末尾是’\0’的字符串，到现在其实不然，我们把’\0’转换为’a’字符一样会出现这种问题，但是我们使用’\n’,’\r’和空格等字符就不会出现这种问题，现在我们知道其根源就是在字符转换过程中输入流没有输入全部字符，所以流的结束标志EOF,一直为0。 
+
+其实在上面的应用中我们不能一直认为boost::lexical_cast的方法一定是好的。在我们编成过程中，常见的转换是把一段字符串中含有数字和字母的字符串中的数字串转换为整形，这样的如果我们使用boost::lexical_cast的话，永远得不到正确结果了，每次都会有异常抛出，这时候我们可以使用stringstream，转换后不判断eof()，这样就可以得到我们想要的整数。
+在上面的测试中，突然想到一个变态的想法，STL中的字符串转为整形的流实现是怎么做的，不过SGI的STL真够难堪的。 
+
+大体查找过程如下 
+
+(1): Vim /usr/include/c++/3.4.4/sstream 
+
+发现引用了istream 
+
+(2): Vim /usr/include/c++/3.4.4/ istream 
+
+发现operator<<(int)的实现在bits/istream.tcc文件中 
+
+(3): Vim /usr/include/c++/3.4.4/ bits/istream.tcc 
+
+发现const __num_get_type& __ng = __check_facet(this->_M_num_get);__ng.get(*this, 0, *this, __err, __l);所以查找__num_get_type类型中的get函数，同时发现istream.tcc中的#include <locale> 比较陌生，同时在istream中查找__num_get_type 类型为typedef num_get<_CharT, istreambuf_iterator<_CharT, _Traits> > __num_get_type; 所以，最终要查找的类型为num_get 
+
+(4): Vim /usr/include/c++/3.4.4/locale 
+
+发现这个文件中包括以下头文件 
+
+#include <bits/localefwd.h> 
+#include <bits/locale_classes.h> 
+#include <bits/locale_facets.h> 
+#include <bits/locale_facets.tcc> 
+
+逐个察看 
+
+(5): Vim /usr/include/c++/3.4.4/ bits/localefwd.h 
+
+发现模板类num_get声明 
+
+template<typename _CharT, typename _InIter = istreambuf_iterator<_CharT> > 
+
+class num_get; 
+
+(6): Vim /usr/include/c++/3.4.4/ bits/locale_facets.h 
+
+在这个文件中发现num_get的实现 
+
+template<typename _CharT, typename _InIter> 
+
+class num_get : public locale::facet 
+
+查找get方法 
+
+iter_type 
+
+get(iter_type __in, iter_type __end, ios_base& __io, 
+
+ios_base::iostate& __err, bool& __v) const 
+
+{ return this->do_get(__in, __end, __io, __err, __v); } 
+
+查找do_get方法 
+
+
+
+(7): Vim /usr/include/c++/3.4.4/ bits/locale_facets.tcc 
+
+发现 
+
+
+// _GLIBCXX_RESOLVE_LIB_DEFECTS 
+// 17. Bad bool parsing 
+template<typename _CharT, typename _InIter> 
+_InIter 
+num_get<_CharT, _InIter>:: 
+do_get(iter_type __beg, iter_type __end, ios_base& __io, 
+ios_base::iostate& __err, bool& __v) const 
+{ 
+if (!(__io.flags() & ios_base::boolalpha)) 
+{ 
+// Parse bool values as long. 
+// NB: We can't just call do_get(long) here, as it might 
+// refer to a derived class. 
+long __l = -1; 
+__beg = _M_extract_int(__beg, __end, __io, __err, __l); 
+if (__l == 0 || __l == 1) 
+__v = __l; 
+Else 
+... 
+
+
+
+查找_M_extract_int 方法 
+
+终于找到 
+
+
+template<typename _CharT, typename _InIter> 
+template<typename _ValueT> 
+_InIter 
+num_get<_CharT, _InIter>:: 
+_M_extract_int(_InIter __beg, _InIter __end, ios_base& __io, 
+ios_base::iostate& __err, _ValueT& __v) const 
+{ 
+typedef char_traits<_CharT> __traits_type; 
+typedef typename numpunct<_CharT>::__cache_type __cache_type; 
+__use_cache<__cache_type> __uc; 
+const locale& __loc = __io._M_getloc(); 
+const __cache_type* __lc = __uc(__loc); 
+const _CharT* __lit = __lc->_M_atoms_in; 
+.... 
+
+分析_M_extract_int的关键代码， 
+
+如下 
+
+
+… 
+int __base = __oct ? 8 : (__basefield == ios_base::hex ? 16 : 10); 
+… 
+const _ValueT __new_result = __result * __base 
+- __digit; 
+__overflow |= __new_result > __result; 
+__result = __new_result; 
+++__sep_pos; 
+__found_num = true; 
+… 
+根据以上代码C++中的流转换，没有使用什么特别的技巧，在由字符串转为数字时，使用的也是查找字符*10(8,16)的方法，只是这个过程中多了很多步我们想不到的安全验证。 
+
+总算搞明白了，sgi真不是给人看得，你也可以了解float类型是怎么实现的，参考_M_extract_float函数。
+
+
+
+
+
+
+
+
+
+
+boost之lexical_cast简易说明
+作者: habadog 日期: 2011 年 05 月 07 日 发表评论 (0)查看评论
+boost之lexical_cast
+
+一、lexical_cast的作用
+lexical_cast使用统一的接口实现字符串与目标类型之间的转换。
+
+二、lexical_cast与c/c++提供类似接口的比较
+标准c家族中包含此类函数，例如atoi与itoa等，它们的缺点是：
+（1）各个转换都是单向的，双向转换为不同函数，各种转换函数不同，接口众多；
+（2）仅支持基础数据类型的子集，如int，long，double；
+（3）不能提供统一的接口，易用性差；
+
+c++中提供了stringstream，使用它进行格式转换可读性较差，使用起点较高，只是简单的转换，stringstream太重量级。
+
+boost提供了lexical_cast，使用统一接口形式实现任意类型之间的转换，增强了易用性。但如果需要严密控制精度的转换，仍然推荐使用stringstream；数值之间的转换，推荐使用numeric_cast。
+
+三、lexical_cast的接口形式
+
+?
+1
+2
+3
+template<typename target,="" typename="" source="">
+Target lexical_cast(const Source& arg);
+</typename>
+四、lexical_cast的样例代码
+
+?
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+#include "iostream"
+#include "boost/lexical_cast.hpp" // 需要包含的头文件
+ 
+using boost::lexical_cast;
+using boost::bad_lexical_cast;
+using namespace std;
+ 
+int main()
+{
+    char* p="32768";
+    int i=0;
+    try
+    {
+        i=lexical_cast<int>(p); // 将字符串转化为整数
+    }
+    catch(bad_lexical_cast&)    // 转换失败会抛出一个异常
+    {
+        i=0;
+    }
+    cout << i << endl;
+    return i;
+}
+</int>
+相关文章 :
+
+
+
+
+
+
+
+
+
+
+
+转载: boost regex 正则表达式使用学习 (2013-05-05 15:19:06)转载▼
+分类： Programming
+转载自:  http://blog.csdn.net/jsufcz/article/details/3312786
+
+什么是正则表达式？正则表达式是一种用来描述一定数量文本的模式。Regex代表Regular Express。
+如果您不知道什么是正则表达式，请看这篇文章http://blog.csdn.net/begtostudy/archive/2007/11/11/1879206.aspx
+有了正则表达式的基础，问题是如何使用。我们以boost::regex来说
+先看一个网上经典的例子。
+#include "stdafx.h"
+#include
+#include
+#include
+#include
+#include
+using namespace std;
+using namespace boost;
+regex expression_r("^select ([a-zA-Z]*) from ([a-zA-Z]*)");
+int main(int argc, char* argv[])
+{
+　std::string in;
+　cmatch what;
+　cout << "enter test string" << endl;
+　getline(cin,in);
+　if(regex_match(in.c_str(), what, expression))
+　{
+for(int i=0;i
+　cout<<"str :"<<what[i].str()<<endl;
+　}
+　else
+　{
+cout<<"Error Input"<<endl;
+　}
+　return 0;
+}
+ 
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+结果
+输入：select name from table
+输出：str:select name from table
+　str:name
+　str:table
+按照我们的要求，字符串被匹配挑出来了。
+这在处理大量规则的文本格式的时候很有用，因为它很灵活，一通百通。
+首先，即使你拥有了boost库，也需要单独编译regex。
+如果你不知道boost库，看这里http://www.stlchina.org/twiki/bin/view.pl/Main/BoostStartIntroduce
+网上的介绍：
+boost库安装比较麻烦，需要自己编译源文件，我整理了一下，如果仅仅需要做正则表达式，按下面的代码敲就行了：
+cmd
+vcvars32.bat
+cd D:/boost_1_32_0/libs/regex/build
+d:
+nmake -fvc6.mak
+nmake -fvc6.mak install
+注意，别看下载下来的数据包没有多大，解压缩之后达到了100多M，编译完之后为109M，占用131M，所以安装时一定注意空出足够的空间，敲入nmake -fvc6.mak后等待的时间比较长，屏幕上还会出现一大堆英语，可以不做考虑。按照步骤往下敲就行了。压缩包内文档很详细，参照文档继续就可以了。
+在VC6中集成：Tools->Options->Directories->Include files
+加入：D:/boost_1_32_0
+我用的是VS2003
+做了run.bat
+chdir E:/Program/boost_1_34_1
+bjam "-sTOOLS=vc-7_1" "-sVC71_ROOT=D:/Program Files/Microsoft Visual Studio .NET 2003/Vc7"  "--prefix=E:/Program/boost" "--builddir=E:/Program/boost_1_34_1/build" "-sBUILD=debug release static/dynamic" --with-regex install
+PAUSE
+至于参数，需要参考boost安装介绍http://blog.csdn.net/begtostudy/archive/2007/11/11/1879213.aspx
+其他的一些介绍
+ bool validate_card_format(const std::string s)
+        {
+           static const boost::regex e("(//d{4 }[- ]){3}//d{4}");
+           return regex_match(s, e);
+        }
+boost::regex的默认正则表达式语法是perl语法
+        boost::regex支持perl regular表达式、POSIX-Extended regular表达式和POSIX-Basic Regular表达式，但默认的表达式语法是perl语法，如果要使用其余两种语法需要在构造表达式的时候明确指定。
+        例如，下面两种方法效果相同
+        // e1 is a case sensitive Perl regular expression:
+        // since Perl is the default option there's no need to explicitly specify the syntax used here:
+        boost::regex e1(my_expression);
+        // e2 a case insensitive Perl regular expression:
+        boost::regex e2(my_expression, boost::regex::perl|boost::regex::icase);
+perl正则表达式语法
+        perl正则表达式语法可参见《perl语言入门》第7、8、9章或boost的文档。这里列出的语法是不全面的，而且部分说明可能并不清楚。
+        . 任意字符;使用match_no_dot_null标志时不匹配NULL字符; 使用match_not_dot_newline时不匹配换行字符
+        ^ 匹配行的开始
+        $ 匹配行的结束
+        * 重复零次或则更多,例如a*b可匹配b,ab,aab,aaaaaaab
+        + 重复一次以上，例如a+b可匹配ab,aab,aaaaaaaab。但不能匹配b了
+        ? 零次或则一次，例如ca?b匹配cb,cab但不匹被caab   
+        a{n} 匹配字符'a'重复n次
+        a{n,}，字符a重复n次以上（含n次）
+        a{n,m} a重复n到m次（含）
+        *?   匹配前一个原子零次以上
+        +?   匹配前一个原子一次以上
+        ??   匹配前一个原子零次以上
+        {n,}?  匹配前一个原子n次以上(含)
+        {n,m?  匹配前一个原子n到m次(含)
+        | 或操作，例如ab(d|ef)匹配abd或则abef
+        [] 字符集操作，例如[abc]将匹配任何单个字符'a'，'b'，'c'
+        [a-d]，表示a、b、c、d
+        ^否操作，例如[^a-c]表示a至c之外的所有字符
+
+boost::regex对unicode编码的支持
+        boost::regex使用ICU来实现对unicode及unicode变种的支持，这需要在编译boost的时候指出是否使用ICU以及ICU所在的目录。否则编译出来的boost::regex不支持unicode编码。其中boost::wregex支持unicode编码的搜索，如果要搜索UTF-8、UTF-16、UFT-32编码的字符串，则要用boost::u32regex。注意boost::wregex只能支持unicode编码，不能支持uft编码。
+搜索时如何忽略大小写
+        如果要在搜索时忽略大小写（即大小写不敏感），则要用到表达式选项boost::regex::icase，例如： boost::regex e2(my_expression, boost::regex::perl|boost::regex::icase);
+ 
+模板类：
+l         basic_regex          用来保存一个“正则表达式”的类。
+l         sub_match             继承于 pair 迭代器组，用来表示匹配的一个结果。
+l         match_results             sub_match 的容器，用来表示一次搜索或匹配算法的所有结果，类似于 vector 。
+算法：
+l         regex_math   匹配算法，测试一个字符串是否和一个正则式匹配，并通过 match_results 返回结果。
+l         regex_find      查找算法，查找字符串的一个和正则式匹配的字串，并通过 match_results 返回结果。
+l         regex_format        替换算法，查找字符串中的所有匹配正则式的字串，并使用“格式化字符”串替换。
+迭代器：
+l         regex_iterator       枚举一个字符串中所有匹配的字串， regex_iterator 的结果相当于 match_results 。
+l         regex_token_iterator 枚举一个字符串中所有匹配的字串， regex_iterator 的结果相当于 sub_match 。
+ 
+详述
+l       basic_regex
+template , class Allocator = std::allocator  >
+class basic_regex;
+typedef basic_regex regex;
+typedef basic_regex wregex;
+很明显， charT 是正则式的字符类型， regex 和 wregex 是 basic_regex 的两个特化。
+注意，正则式的字符类型要和需要匹配的字符串的字符类型相同。例如：不能在 regex_find 算法中分别使用 string 和 wregex 最为参数，要么是 string 和 regex ，要么是 wstring 和 wregex 。
+构造函数：
+basic_regex re
+产生空的正则式
+basic_regex re(str)
+正则式为 str ， str 可以为 basic_string ，也可以是 0 结尾的 char* 字符串。
+Basic_regex re(re2)
+拷贝构造。
+basic_regex re(str,flag)
+正则式为 str ，使用 flag 语法选项， flag 是一组常量的组合。例如： icase 可以使正则式匹配忽略大小写。
+basic_regex re(beg,end)
+使用迭代器构造正则式。可以是 basic_string 的迭代器，也可以是 const char* 。
+basic_regex re(beg,end,flag)
+使用迭代器构造正则式， flag 是语法选项。
+常用的语法选项：
+regex_constants::normal
+默认的语法。符合 EMCAScript,JavaScript 中的正则式。
+regex_constants::icase
+匹配的时候忽略大小写。
+regex_constants::nosubs
+不把匹配的子串保存进 match_results 结构。
+regex_constants::collate
+对于 [a-b] 的匹配，考虑地区
+ 
+语法选项通过或运算来结合。在 basic_regex 中这些语法选项也进行了定义，所以可以写成 regex::normal ，这要比 regex_constants 少打好几个字母了吧！ J
+assign 成员函数：
+re.assign(re2)
+复制一个正则式
+re.assign(str)
+正则式为 str 。
+re.assign(str, flag)
+正则式为 str ，使用 flag 语法选项， flag 是一组常量的组合。
+re.assign(beg, end)
+使用迭代器构造正则式。
+re.assign(beg, end, flag)
+使用迭代器构造正则式， flag 是语法选项。
+ 
+其实 basic_regex 很多用法和 basic_string 很像，因为正则表达式也是个字符串嘛！
+迭代器：
+regex::iterator it
+常迭代器类型，即 const_iterator
+re.begin()
+返回的是常迭代器哦！ const_iterator
+re.end()
+没有逆向迭代器。
+例如： copy(re.begin(), re.end(), ostream_iterator(cout));
+其他：
+re.size()
+正则表达式长度，即 str 的长度。
+re.max_size()
+正则表达式的最大长度。
+re.empty()
+长度是否为 0
+re.mark_count()
+返回正则式的组数，一般情况下为小括号对数 +1 。在 boost.regex 中使用小括号分组，详情请看下面的算法详解。
+re.flags()
+返回语法选项。
+cout<<re
+正则式的流输出，相当于上面示例的 copy 算法。
+swap
+成员函数，全局函数都有
+re.imbue(loc)
+设置 local 为 loc ，返回原来的 local
+re.getloc()
+得到当前 local
+==,!=,<,<=,>,>=
+比较运算符重载
+ 
+l       sub_match
+sub_match 是一个迭代器组，表示正则式中的一个匹配。
+template
+class sub_match : public std::pair;
+boost 没有提供 sub_match 的任何特化，因为我们不会显示的声明一个 sub_match 变量。 sub_match 是作为 match_results 的元素用的。比如： match_results 的 operator[] 和迭代器返回的就是一个特化的 sub_match 。
+唯一的成员变量：
+bool matched  是否匹配。
+成员函数：
+length()
+返回长度，即两个迭代器之间的距离。
+operator basic_string< value_type>()
+隐式的 basic_string 转换。
+str()
+显式的 basic_string 转换。
+还有就是一大堆的比较操作符的重载了，这里就不多说了。
+ 
+l       match_results
+match_results 相当于 sub_match 的容器，用于表示正则式算法的返回结果。
+template
+          class Allocator = allocator >
+class match_results;
+ 
+typedef match_results cmatch;
+typedef match_results wcmatch;
+typedef match_results smatch;
+typedef match_results wsmatch;
+声明很简单，有四个特化可以直接使用，不过要注意 string 和 char* 字符串使用的 match_results 是不同的。
+成员函数：
+m.size()
+容量。
+m.max_size()
+最大容量。
+m.empty()
+容量是否为 0 。
+m[n]
+第 n 个元素，即 sub_match
+m.prefix()
+返回代表前缀的 sub_match ，前缀指字符串的开头到第一个匹配的开头。
+m.suffix()
+返回代表后缀的 sub_match ，后缀之最后一个匹配的结尾到字符串的结尾。
+m.length(n)
+返回第 n 个元素的长度，即 m[n].size() 。
+m.position(n)
+返回第 n 个元素的位置。
+cout<<m
+流输出，输出整个匹配，相当于 cout<<m[0] 。因为第 0 个元素是整个匹配，详细情况请看下面的解释。
+m.format(fmtstr)
+使用格式化字符串，格式化结果，返回字符串
+m.format(fmtstr,flags)
+使用格式化字符串，格式化结果，返回字符串， flags 是格式化选项。
+m.format(out,fmtstr)
+同上，但是使用输出迭代器输出结果。
+m.format(out.fmtstr,flags)
+同上，但是使用输出迭代器输出结果。
+迭代器：
+smatch::iterator
+迭代器，常迭代器
+smatch::const_iterator
+同上
+m.begin()
+返回常迭代器
+m.end()
+同上
+ 
+最后，说一个实例
+我处理一个文本
+            实际值/-20.031,-1.896,-2.861,-1,0,0
+提取其中的数字
+regex exp("/s*实际值/(-?[0-9.]+),(-?[0-9.]+),(-?[0-9.]+),(-?[0-9.]+),(-?[0-9.]+),(-?[0-9.]+)$");
+大家看看还有没有更好的写法？
+ 
+ 
+ 
+在上一篇 的 learning boost 中，我们已经说完了 regex 中的三个模板类，这一篇我们要来使用这些类。我们通过三个算法来使用正则式， regex_match 、 regex_search 、 regex_replace 。
+regex_match
+regex_match 算法用来测试一个字符串是否完全匹配正则式。让我们来看一下 regex_match 的使用：
+if (regex_match(str, m, re))
+{
+    ...
+}
+str 是一个字符串，可以是 string ， wstring ， char * 或者 wchar_t *
+m 是 match_results ，它通过引用传入参数，来保存匹配的结果， m 要和 str 的类型匹配，可以是 smatch ， wsmatch ， cmatch 或 wcmatch ，用来分别对应 string ， wstring ， char * 或者 wchar_t* 的 str 。
+re 就是正则表达式了，一般来说是 regex 或 wregex 。
+str ， m ， re 的类型如下：
+str 类型
+m 类型
+re 类型
+string
+smatch (match_results)
+regex (basic_regex)
+wstring
+wsmatch (match_results)
+wregex (basic_regex)
+char*
+cmatch (match_results)
+regex (basic_regex)
+wchar_t*
+wcmatch (match_results)
+wregex (basic_regex)
+ 
+函数的返回值表示字符串是否完全匹配正则表达式，当返回 true 的时候， m 保存了匹配的结果；返回 false ， m 未定义。
+下面让我们来看一下，当函数返回 true 的时候， m 是怎么样的。
+m.size() == re.mark_count()
+还记得 re.mark_count() 返回的是什么吗？在上一篇中说的是 re.mark_count() 返回的时正则式的“组数”，并没有详细解释。这里我要详细解释一下。
+其实，这个“组数”在 boost 的 regex 中叫做 sub-expression 。 sub-expression 就是在正则式中使用小括号括起来的一部分，正则式本身是一个 sub-expression ，所以 re.mark_count() 等于小括号对数 +1 。
+m.prefix() 和 m.suffix()
+这两个返回的是 sub_match 类型（相当于一个迭代器组）。在 regex_match 算法中，这两个返回的 sub_match 都是空的，他们的值如下：（ sub_match 继承于 pair ，所以有 first 和 second 成员哦）
+m.prefix().first == str.begin()
+m.prefix().second == str.begin()
+m.prefix().matched == false
+m.suffix().first == str.end()
+m.suffix().second == str.end()
+m.suffix().matched == false
+因为 regex_match 是完全匹配，即整个字符串和正则式匹配，所以前缀和后缀都是空的。
+m[0]
+返回第 0 个匹配的，由于 regex_match 是完全匹配，所以
+m[0].first == str.begin()
+m[0].second == str.end()
+m[0].matched == true
+m[n] , n
+返回第 n 个匹配的 sub-expression 。
+m[n].matched 表示第 n 个 sub-expression 是否在字符串中存在。整个 regex 匹配，但是 sub_exp 可能匹配的是空的，例如 ”(a*)” 就有可以匹配空。
+m[n].first 和 m[n].second 表示匹配的范围。如果匹配空的话，都为 str.end() 。
+ 
+根据我的测试， m[1],m[2],...,m[n] 的顺序是按照正则式的左小括号的顺序来的 ，例如对于正则式 ”((a)bc)d(efg)” ，如果匹配了一个字符串的话（字符串只可能是 ”abcdefg” ），则
+m[0] == “abcdefg”  （ sub_match 重载了 == 运算符使得可以和一个字符串比较）
+m[1] == “abc”
+m[2] == “a”
+m[3] == “efg”
+ 
+regex_match 的其它用法
+regex_match(str,re)
+只测试是否匹配，不需要匹配的结果
+regex_match(beg,end,re)
+输入的是迭代器
+regex_match(beg,end,m,re)
+注意 m 的类型为 match_results
+regex_match(str,m,re,flag)
+flag 是匹配选项，默认是的 regex_constants::match_default
+ 
+regex_search
+regex_search 的用法基本上和 regex_match 一样。
+if (regex_search(str, m, re))
+{
+    ...
+}
+regex_search 不要求 str 完全匹配 re ，只要 str 中的一个字串匹配 re 就可以了。所以， m.prefix() 和 m.suffix() 不一定为空。
+regex_search 是从左往右匹配，而且尽量匹配长的字串。
+ 
+ 
+三：简单的例子
+    std::string regstr = "a+";
+    boost::regex expression_r(regstr);
+    std::string testString = "aaa";
+
+    // 匹配至少一个a
+    if( boost::regex_match(testString, expression) )
+    {
+        std::cout<< "Match" << std::endl;
+    }
+    else
+    {
+        std::cout<< "Not Match" << std::endl;
+    }
+四：regex_match例子代码学习
+1 我们经常会看一个字符串是不是合法的IP地址，合法的IP地址需要符合以下这个特征：
+  xxx.xxx.xxx.xxx 其中xxx是不超过255的整数
+正则表达式找到上面的这种形式的字符串相当容易，只是判断xxx是否超过255就比较困难了（因为正则表达式是处理的文本，而非数字）
+OK，我们先来处理一个数字，即：xxx。找到一种表达式来处理这个数字，并且保证这个数字不会超过255
+第一种情况：x，即只有一个数字，它可以是0～9 ，用/d 表示
+第二种情况：xx，即有两个数字，它可以是00～99，用/d/d 表示
+第三种情况：xxx，这种情况分为两种，一种是 1xx，可以用 1/d/d 表示
+                                   另外一种是 2xx，这又分为两种 2[1234]/d
+                                                             和 25[12345]
+好了组合起来
+1?/d{1,2}|2[1234]/d|25[12345]
+既可以标识一个不大于255的数字字符串
+
+嗯，我们现在需要重复这种情况既可：
+(1?/d{1,2}|2[1234]/d|25[12345])/.(1?/d{1,2}|2[1234]/d|25[12345])/.(1?/d{1,2}|2[1234]/d|25[12345])/.(1?/d{1,2}|2[1234]/d|25[12345])
+
+呵呵，长是长了点，我试图用boost支持的子表达式缩短，但是没有达到效果，请各位了解boost的正则表达式的达人指点：
+(1?/d{1,2}|2[1234]/d|25[12345])/./1$/./1$/./1$
+(参看反向索引：http://www.boost.org/libs/regex/doc/syntax_perl.html
+似乎反向只能匹配与第一个字符完全一样的字符串，与我们的需求不同)
+
+Example：
+std:: string  regstr  =   " ( 1?//d{1,2}|2[1234]//d|25[12345])//.( 1?//d{1,2}|2[1234]//d|25[12345])//.( 1?//d{1,2}|2[1234]//d|25[12345])//.( 1?//d{1,2}|2[1234]//d|25[12345])" ;
+boost::regex expression_r(regstr);
+std:: string  testString  =   " 192.168.4.1 " ;
+if ( boost::regex_match(testString, expression) )
+{
+    std::cout <<   " This is ip address "   <<  std::endl;
+}
+else
+{
+    std::cout <<   " This is not ip address "   <<  std::endl;
+}
+
+2 我们来看看regex_match的另外一个函数原型 
+template 
+    bool regex_match (const basic_string& s,
+    match_results ::const_iterator, Allocator>& m,
+    const basic_regex & e, match_flag_type flags = match_default);
+
+template 
+bool regex_match(BidirectionalIterator first, BidirectionalIterator last,
+match_results & m,
+const basic_regex & e,
+match_flag_type flags = match_default);
+ 
+注意参数m，如果这个函数返回false的话，m无定义。如果返回true的话，m的定义如下
+Element
+Value
+m.size()
+e.mark_count()
+m.empty()
+false
+m.prefix().first
+first
+m.prefix().last
+first
+m.prefix().matched
+false
+m.suffix().first
+last
+m.suffix().last
+last
+m.suffix().matched
+false
+m[0].first
+first
+m[0].second
+last
+m[0].matched
+true if a full match was found, and false if it was a partial match (found as a result of the match_partial flag being set).
+m[n].first
+For all integers n < m.size(), the start of the sequence that matched sub-expression n . Alternatively, if sub-expression n did not participate in the match, then last .
+m[n].second
+For all integers n < m.size(), the end of the sequence that matched sub-expression n . Alternatively, if sub-expression n did not participate in the match, then last .
+m[n].matched
+For all integers n < m.size(), true if sub-expression n participated in the match, false otherwise.
+Example:
+std:: string  regstr  =   " (1?//d{1,2}|2[1234]//d|25[12345])//.(1?//d{1,2}|2[1234]//d|25[12345])//.(1?//d{1,2}|2[1234]//d|25[12345])//.(1?//d{1,2}|2[1234]//d|25[12345]) " ;
+boost::regex expression_r(regstr);
+std:: string  testString  =   " 192.168.4.1 " ;
+boost::smatch what;
+if ( boost::regex_match(testString, what, expression) )
+{
+    std::cout <<   " This is ip address "   <<  std::endl;
+     for ( int  i  =   1 ;i  <=   4 ;i ++ )
+    {
+        std:: string  msg(what[i].first, what[i].second);
+        std::cout <<  i  <<   " ： "   <<  msg.c_str()  <<  std::endl;
+    }
+}
+else
+{
+    std::cout <<   " This is not ip address "   <<  std::endl;
+}
+这个例子会把所有的IP的单个数字答应出来：
+This is ip address
+1：192
+2：168
+3：4
+4：1
+ 五： regex_search 学习 
+regex_search与regex_match基本相同，只不过regex_search不要求全部匹配，即部份匹配（查找）即可。
+简单例子：
+std:: string  regstr  =   " (//d+) " ;
+boost::regex expression_r(regstr);
+std:: string  testString  =   " 192.168.4.1 " ;
+boost::smatch what;
+if ( boost::regex_search(testString, expression) )
+{
+    std::cout <<   " Have digit "   <<  std::endl; 
+}
+上面这个例子检测给出的字符串中是否包含数字。
+
+好了，再来一个例子，用于打印出所有的数字
+std:: string  regstr  =   " (//d+) " ;
+boost::regex expression_r(regstr);
+std:: string  testString  =   " 192.168.4.1 " ;
+boost::smatch what;
+std:: string ::const_iterator start  =  testString.begin();
+std:: string ::const_iterator end  =  testString.end();
+while ( boost::regex_search(start, end, what, expression) )
+{
+    std::cout <<   " Have digit： "  ; 
+    std:: string  msg(what[ 1 ].first, what[ 1 ].second);
+    std::cout <<  msg.c_str()  <<  std::endl;
+    start  =  what[ 0 ].second;
+}
+打印出：
+Have digit：192
+Have digit：168
+Have digit：4
+Have digit：1
+六：关于重复的贪婪
+我们先来一个例子：
+std:: string  regstr  =   " (.*)(age)(.*)(//d{2}) " ;
+boost::regex expression_r(regstr);
+std:: string  testString  =   " My age is 28 His age is 27 " ;
+boost::smatch what;
+std:: string ::const_iterator start  =  testString.begin();
+std:: string ::const_iterator end  =  testString.end();
+while ( boost::regex_search(start, end, what, expression) )
+{
+
+    std:: string  name(what[ 1 ].first, what[ 1 ].second);
+    std:: string  age(what[ 4 ].first, what[ 4 ].second);
+    std::cout <<   " Name: "   <<  name.c_str()  <<  std::endl;
+    std::cout <<   " Age: "   << age.c_str()  <<  std::endl;
+    start  =  what[ 0 ].second;
+}
+
+我们希望得到的是打印人名，然后打印年龄。但是效果令我们大失所望：
+Name:My age is 28 His
+Age:27
+
+嗯，查找原因：这是由于"+"号或者"*"号等重复符号带来的副作用，这些符号会消耗尽可能多的输入，使之是“贪婪”的。即正则表达式(.*)会匹配最长的串，而不是匹配最短的成功串。
+如何使得这些重复的符号不再“贪婪”，我们在重复符号后加上"?"即可。
+std:: string  regstr  =   " (.*?)(age)(.*?)(//d{2}) " ;
+boost::regex expression_r(regstr);
+std:: string  testString  =   " My age is 28 His age is 27 " ;
+boost::smatch what;
+std:: string ::const_iterator start  =  testString.begin();
+std:: string ::const_iterator end  =  testString.end();
+while ( boost::regex_search(start, end, what, expression) )
+{
+
+    std:: string  name(what[ 1 ].first, what[ 1 ].second);
+    std:: string  age(what[ 4 ].first, what[ 4 ].second);
+    std::cout <<   " Name: "   <<  name.c_str()  <<  std::endl;
+    std::cout <<   " Age: "   << age.c_str()  <<  std::endl;
+    start  =  what[ 0 ].second;
+}
+打印输出：
+Name:My
+Age:28
+Name: His
+Age:27
+
+七： regex_replace 学习
+写了个去除左侧无效字符（空格，回车，TAB）的正则表达式。
+std:: string  testString  =   "     /r/n Hello        World  !  GoodBye  World/r/n " ;
+std:: string  TrimLeft  =   " ([//s//r//n//t]*)(//w*.*) " ;
+boost::regex expression_r(TrimLeft);
+testString  =  boost::regex_replace( testString, expression,  " $2 "  );
+std::cout <<   " TrimLeft: "   <<  testString  << std::endl;
+打印输出：
+TrimLeft:Hello          World  !  GoodBye  World
+ 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+ 
+关于匹配结果集的一些定义：
+typedef match_results cmatch;
+typedef match_results smatch;
+typedef match_results wcmatch;
+typedef match_results wsmatch;
+在match_results中有如下定义：
+class match_results
+{
+ #ifndef BOOST_NO_STD_ALLOCATOR
+    typedef          std::vector, Allocator> vector_type;
+ #else
+    typedef          std::vector >           vector_type;
+ #endif
+ .....
+ private:
+    vector_type            m_subs; // subexpressions
+    BidiIterator   m_base; // where the search started from
+    sub_match m_null; // a null match
+}
+BidiIterator作为特化类型，const char* 特化为cmatch，std::string::const_iterator 特化为smatch。
+从上面可以看出，match_results其实是对两种特化的vector>集合的封装。但它同样提供了如下定义
+   typedef typename vector_type::const_iterator                             const_iterator;
+   typedef          const_iterator                                          iterator;
+供我们来间接操作vector>。
+为了可以像vector一样，透明的使用match_results，它重载了begin()，end()，at()，[]等方法和运算符。
+同时，也增加了如 prefix()，suffix()。
+接下来，我们来看sub_match的定义：
+template
+struct sub_match : public std::pair
+{
+   typedef          BidiIterator                                                     iterator;
+   typedef          BidiIterator                                                     const_iterator;
+   bool matched;
+}
+BidiIterator接受const char *或std::string::const_iterator特化。
+sub_match仅有一个数据成员，pair<>的first和end分别指向匹配串的开始和结尾。
+如const char *时，first分别指向串的起始指针，而std::string::const_iterator时，指向string::begin()和string::end()迭代器。
+sub_match提供一个方法str()，它总是返回string类型。
+应用举例：
+#include "stdafx.h"
+#include
+#include
+#include
+using namespace std;
+using namespace boost;
+int _tmain(int argc, _TCHAR* argv[])
+{
+ regex re("hello");
+ printf("re.mark_count = %d /n", re.mark_count());   //打印子表达式的个数，这里输出1
+ string sss = "hello hello";
+ cmatch what;
+ while (regex_search(sss.c_str(), what, re))
+ {
+  //进行多种方式进行打印
+  //(*iter)和what[0]为sub_match值，调用其str()方法返回string类型
+  cmatch::iterator iter = what.begin();
+  cout << (*iter).str().c_str() << endl;
+  cout << what[0].str().c_str() << endl;
+  cout << what[0] << endl; // 对 << 进行了重载，间接调用了str();
+  
+  //suffix()指向每个匹配串的尾部
+  cout << what.suffix() << endl;
+  sss = what.suffix();
+ }
+ return 0;
+}
+另外，还有一个很重要的名词“子语句”，正则表达式以“()“表示子语句，因为表达式本身也是一个语句，所以子语句个数为()数+1，
+它们分别按"("的位置进行排序，表达式本身为0号索引。
+应用举例：
+int main()
+{
+ string sss = "hello hello";
+ regex re2(".*(he).*(he).*");
+ smatch result2;
+ if (regex_match(sss, result2, re2))
+ {
+  for (int i = 0; i < result2.size(); i ++)
+   cout << result2[i] << endl;
+ }
+ else
+ {
+  cout << "no match" << endl;
+ }
+ 
+ return 0;
+}
+输出结果：
+hello hello
+he
+he
+我们再举个*贪婪的例子
+int main()
+{
+ string sss = "he1llo he2llo";
+ regex re2 = string(".*(he//d).*");
+ smatch result2;
+ if (regex_match(sss, result2, re2))
+ {
+  for (int i = 0; i < result2.size(); i ++)
+   cout << result2[i] << endl;
+ }
+ else
+ {
+  cout << "no match" << endl;
+ }
+ return 0;
+}
+输出结果：
+he2
+修改为：
+ regex re2 = string(".*?(he//d).*");
+输出结果：
+he1
+替换用法：
+内部机制是search所有的，并一一替换
+ regex re3("([//s//t//r//n]*)(//w *.*)");
+ string str3 = "   hello   ";
+ str3 = regex_replace(str3, re3, "$2");
+ regex re4("l");
+ str3 = regex_replace(str3, re4, "");
+ cout << str3 << endl;
+
+关于正则表达式的Flag定义：
+namespace regex_constants{
+ enum flag_type_
+ {
+  icase = ::boost::regbase::icase,
+ }
+ typedef ::boost::regbase::flag_type syntax_option_type;
+}
+typedef regex_constants::syntax_option_type   flag_type;
+正则表达式忽略小写的写法有：
+boost::regbase::icase
+regex_constants::icase
+boost::regex::icase   这个定义没有找到
+举例（实现一个已有表达式转化为忽略大小写的）
+ string ttt = re3.str();
+ printf("%s", ttt.c_str());
+ regex re5(ttt, regex::icase);
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 转载:  boost 学习笔记：regex语法规范（翻译）ZT (2013-05-07 10:22:54)转载▼
+分类： Programming
+转载自:   http://blog.csdn.net/fjye/article/details/2078716
+
+
+这部分包含了boost.regex库的正则表达式的语法。这是一份程序员指南，实际的语法由在程序中的正则表达式的选项决定。（译注：即regex类构造函数的flag参数。）
+ 
+文字（Literals）
+除了一下字符，其它的任何字符都表示其字面意义(literal)。
+“.”, “|”, “*”, “?”, “+”, “(“, “)”, “{“, “}”, “[“, “]”, “^”, “$” 和 “/”
+要使用这些字符的字面意义，要在前面使用 “/” 字符。一个字面意义的字符匹配其本身，或者匹配 traits_type::translate() 的结果，这里的traits_type 是 basic_regex 类的特性模板参数(the traits template parameter)。
+ 
+通配符（Wildcard）
+点号 ”.” 匹配任意的单个字符。当在匹配算法中使用了 match_not_dot_null 选项，那么点号不匹配空字符(null character)。当在匹配算法中使用了 match_not_dot_newline 选项，那么点号不匹配换行字符（newline character）。
+ 
+重复（Repeats）
+一个重复是一个表达式（译注：正则表达式）重复任意次数。一个表达式后接一个 “*” 表示重复任意次数（包括0次）。一个表达式后接一个 “+” 表示重复任意次数（但是至少1次）。如果表达式使用 regex_constants::bk_plus_qm编译（译注：regex类构造函数的flag参数），那么 “+” 是一个普通的字符（译注：即 “+” 表示其字面意义）， “/+” 用来表示重复一或多次。一个表达式后接一个 “?” 表示重复0或1次。如果表达式使用 regex_constants::bk_plus_qm 选项，那么 “?” 是一个普通字符，”/?” 用来表示重复0或1次。如果需要显式的指定重复的最大最小次数的话，请使用边界操作符 “{}”，那么 “a{2}” 表示字母 “a” 重复2次， “a{2,4}” 表示字母 “a” 重复2至4次， “a{2,}” 表示字母 “a” 重复至少2次（无上限）。注意：在{}之间是没有任何空格的，并且上下边界的大小是没有上限的。如果表达式使用 regex_constants::bk_braces 选项编译，那么 “{” 和 “}” 是普通字符， “/{” 和 “/}” 用来表示边界操作符。所有的重复表达式是最短的前置子串（the shortest possible previous sub-expression）：单个字符，字符集合，或者是用诸如 “()” 括起来的子表达式。
+ 
+例：
+“ba*” 匹配 “b”, “ba”, “baaa” 等等。
+“ba+” 匹配诸如 “ba”, “baaaa” 此类，而不匹配 “b”。
+“ba?” 匹配 “b” 或 “ba”。
+“ba{2,4}” 匹配 “baa”, “baaa” 和 “baaaa”。
+ 
+非“贪心”重复（Non-greedy repeats）
+无论是否启用“扩展(extended)”正则表达式语法（默认的），总是允许使用非贪心重复，只要在重复的后面加一个 “?” 。非贪心重复是匹配最短可能串(the shortest possible string)的重复。
+ 
+例如要匹配html的一对标签，可以使用：
+“]*>(.*?)”
+这里$1会包含标签之间的文本，这段文本是最短匹配的字符串。
+ 
+圆括号(Parenthesis)
+圆括号有两个作用：组成子表达式和标记匹配(to group items together into a sub-expression, and to mark what generated the match.)。例如，表达式 “(ab)*” 匹配所有的 “ababab”字符串。匹配算法 regex_match 和 regex_search 各需要一个match_results对象来报告是怎样匹配的，函数返回后match_results会包含整个表达式和各个子表达式的匹配。比如在上述的例子中，match_results[1]会包含表示最后一个 “ab” 的迭代器对(pair)。子表达式也允许匹配空串。如果子表达式匹配为空 - 例如子表达式为选择中的不匹配的那一部分 – 那么一对迭代器指向输入字符串的结尾，并且这个子表达式的matched属性为false。子表达式从左向右，从1开始索引，子表达式0是整个表达式。（译注：上述表达式或子表达式都是指正则表达式。）
+ 
+非标记圆括号(Non-Marking Parenthesis)
+有时你需要使用圆括号组成一个子表达式，但是不像要产生一个标记的子表达式（译注：在match_results中的表达式都是标记的子表达式）。在这种情况下，非标记圆括号 (?:expression) 可以使用。例如下列表达式不产生子表达式：
+“(?:abc)*”
+ 
+前看断言(Forward Lookahead Asserts )
+这有两种形式：一个是正的前看断言；一个是负的前看断言：
+“(?=abc)” 匹配0个字符，除非表达式以 “abc” 开头。
+“(?!abc)” 匹配0个字符，除非表达式不以 “abc” 开头。
+（译注：断言并不匹配，例如： “(?=abc)abcdef” 匹配 “abcdef” ，前面的 “(?=abc)” 并不匹配 “abc” ，而是查看是否已abc开头，如果需要匹配 “abc” 还是需要在后面写上的。）
+ 
+独立子表达式(Independent sub-expressions)
+“(?>expression)” 匹配 “expression” 作为一个独立的原子动作（除非产生错误，算法不会回退产看）。
+ 
+选择(Alternatives)
+选择出现在需要匹配一个子表达式或另一个子表达式的情况下。每个选择的项目使用 “|” 分割，或者当设置了 regex_constants::bk_vbar 选项的时候，使用 “/|” 分割，或者当设置了 regex_constants::newline_alt 选项的时候，使用换行符分割。每个选择的项目总是最长可能的子表达式，这和重复操作符的情况相反。
+ 
+例：
+ 
+“a(b|c)” 匹配 “ab” 或 “ac”。
+ 
+“abc|def” 匹配 “abc” 或 “def”。
+ 
+集合(Sets)
+集合是一个字符的集合，它能够匹配任意是其成员的字符。集合使用 “[” 和 “]” 来包含文字，字符范围，字符类，对照元素和等值类。使用 “^” 开头的集合表示补集。
+ 
+例：
+ 
+字符文字：
+ 
+"[abc]" 匹配 "a", "b", 或 "c"。
+ 
+"[^abc] 匹配除 "a", "b", 和 "c" 之外的任何字符。
+ 
+字符范围：
+ 
+"[a-z]" 匹配任意在 "a" 至 "z" 之间的字符。
+ 
+"[^A-Z]" 匹配在 "A" 至 "Z" 之外的字符。
+ 
+注意，如果设置 regex_constants::collate 选项，那么字符范围的依赖于地域的(locale dependent)：它们匹配任意在范围两端之间的字符，当使用默认的 “C” locale 的时候，范围遵循ASCII的规则。例如，如果库是使用Win32地域模型编译的话，那么 [a-z] 会匹配 a-z的ASCII字符和 ‘A’, ’B’ 等，但不匹配 ‘Z’ ，它正好在’z’的后面。默认情况下，地域特殊化的行为的禁止的，范围的比较遵循ASCII字符的编码。
+ 
+字符类是使用 “[:classname:]” 语法声明的集合。例如 “[[:space:]]” 是所有空白字符的集合。只有当设置了 regex_constants::char_classes 选项后，字符类才有效。可用的字符类有：
+ 
+alnum
+任何字符数字
+alpha
+a-z和A-Z之间的字母。如果设置了地域的话，可能包含其它字符。
+blank
+任何空白字符，空格或者tab字符。
+cntrl
+任何控制字符
+digit
+任何0-9之间的数字
+graph
+任何图形字符
+lower
+a-z之间的小写字符。如果设置了地域的话，可能包含其它字符。
+print
+任何可打印字符
+punct
+任何标点符号
+space
+任何空格字符
+upper
+A-Z之间的大写字母。如果设置了地域的话，可能包含其它字符。
+xdigit
+任何在0-9,a-f和A-F之间的16进制数字
+word
+任何单词字符 – 字母数字加上下划线
+Unicode
+任何编码大于255的字符，只能在宽字符中使用
+ 
+当设置了 regex_constants::escape_in_lists 选项后，你可以使用一些字符类的缩写：
+ 
+/w 代替 [:word:]
+ 
+/s代替 [:space:]
+ 
+/d代替[:digit:]
+ 
+/l代替[:lower:]
+ 
+/u代替[:upper:] 
+ 
+对照元素(Collating elements)是集合声明中的通过 [.tagname.] 表示，此处 tagname 是单个字符或者是对照元素的名称。例如 [[.a.]] 相当于 [a] ，[[.comma.]] 相当于 [,] 。库支持所有标准POSIX的对照元素名称和下列额外的名称： “ae”, “ch”, “ll”, “ss”, “nj”, “dz”, “lj” ，每个都可以小写，大写或开头大写。多字符对照元素令集合匹配一个以上的字符，例如 [[.ae.]]匹配两个字符，而 [^[.ae.]]只匹配一个字符。
+ 
+Equivalence classes take the generalform[=tagname=] inside a set declaration, where tagname is either a single character, or a name of a collating element, and matches any character that is a member of the same primary equivalence class as the collating element [.tagname.]. An equivalence class is a set of characters that collate the same, a primary equivalence class is a set of characters whose primary sort key are all the same (for example strings are typically collated by character, then by accent, and then by case; the primary sort key then relates to the character, the secondary to the accentation, and the tertiary to the case). If there is no equivalence class corresponding to tagname ,then[=tagname=] is exactly the same as [.tagname.]. Unfortunately there is no locale independent method of obtaining the primary sort key for a character, except under Win32. For other operating systems the library will "guess" the primary sort key from the full sort key (obtained from strxfrm), so equivalence classes are probably best considered broken under any operating system other than Win32. 
+ 
+To include a literal "-" in a set declaration then: make it the first character after the opening "[" or "[^", the endpoint of a range, a collating element, or if the flag regex_constants::escape_in_lists is set then precede with an escape character as in "[/-]". To include a literal "[" or "]" or "^" in a set then make them the endpoint of a range, a collating element, or precede with an escape character if the flag regex_constants::escape_in_lists is set.
+ 
+行锚 (Line anchors )
+锚(anchor)是用来在一行开头或结尾匹配空串的： “^” 在一行的开头匹配空串， “$” 匹配行尾的空串。
+ 
+回退引用(Back references)
+回退引用是对已经匹配的子表达式的引用，这个引用是子表达式匹配的字符串，而不是子表达式本身。回退引用由换码符 “/” 加一个 “1” 到 “9” 的数字组成， “/1” 引用第一个子表达式， “/2” 引用第二个 等等。 例如表达式 “(.*)/1” 匹配任何重复2次的字符串，比如 “abcabc” 或 “xyzxyz”。子表达式的回退引用不参与任何匹配，匹配空串：NB 这不同于其它一般性的正则式匹配。只有使用了 regex_constants:bk_refs 选项才能使用回退引用。
+ 
+编码的字符(Characters by code )
+这是算法的一个扩展，在其它的库中是没有的。它由换码符加数字 “0” 加 10进制的字符编码组成。例如 “/023” 表示10进制编码是23的字符。当使用圆括号分割了表达式时，可能引起模糊： “/0103” 表示103编码的字符， “(/010)3” 表示字符10接着一个 “3”。要使用16进制编码的话，用 /x 加一个16进制数就可以了，可以使用 {} 括起来，例如 /xf0 或 /x{aff} ，注意后一个例子是一个Unicode字符。
+ 
+单词操作符(Word operators )
+下列操作符提供了与GNU正则式库德兼容。
+ 
+“/w” 匹配任何属于 “word” 类的字符，相当于 “[[:word:]]”。
+ 
+“/W” 匹配任何不属于 “word” 类的字符，相当于 “[^[:word:]]”。
+ 
+“/<” 匹配一个单词开头的空串。
+ 
+“/>” 匹配一个单词结尾的空串。
+ 
+“/b” 匹配单词开头或结尾的空串。
+ 
+“/B” 匹配单词内的空串。
+ 
+The start of the sequence passed to the matching algorithms is considered to be a potential start of a word unless the flag match_not_bow is set. The end of the sequence passed to the matching algorithms is considered to be a potential end of a word unless the flag match_not_eow is set.
+ 
+缓冲操作符(Buffer operators )
+下列操作符提供了与GNU正则式库和Perl正则式库的兼容：
+ 
+“/`” 匹配一个缓冲的开头(the start of a buffer)。
+ 
+“/A” 匹配缓冲的开头(the start of the buffer)。
+ 
+“/’” 匹配缓冲的结尾。
+ 
+“/z” 匹配缓冲的结尾。
+ 
+“/Z” 匹配缓冲的结尾，可能包含一或多个换行符。
+ 
+一个缓冲是提供给匹配算法的整个序列，除非设置了 match_not_bob 或 match_not_eob 选项。
+ 
+ 
+换码操作符(Escape operator)
+换码字符 “/” 有好几个意思。
+ 
+在集合声明内，换码符是一个普通的字符，除非设置了 regex_constants::escape_in_lists 选项，此时 “/” 之后的字符表示其字面意义而不考虑其原来的意思。
+ 
+换码符可以引出其它的操作，例如：回退引用，或单词操作符。
+ 
+换码符可以接一个正常的字符，例如 “/*” 表示一个字面意义的 “*” 而不是重复操作符。
+ 
+单字符换码串(Single character escape sequences )
+下列是单个字符的换码串：
+ 
+ 
+换码串
+字符编码
+含义
+/a
+0x07
+Bell character.
+/f
+0x0C
+Form feed.
+/n
+0x0A
+Newline character.
+/r
+0x0D
+Carriage return.
+/t
+0x09
+Tab character.
+/v
+0x0B
+Vertical tab.
+/e
+0x1B
+ASCII Escape character.
+/0dd
+0dd
+An octal character code, where dd is one or more octal digits.
+/xXX
+0xXX
+A hexadecimal character code, where XX is one or more hexadecimal digits.
+/x{XX}
+0xXX
+A hexadecimal character code, where XX is one or more hexadecimal digits, optionally a Unicode character.
+/cZ
+z-@
+An ASCII escape sequence control-Z, where Z is any ASCII character greater than or equal to the character code for '@'.
+ 
+ 
+各种换码串：
+下列提供了和perl的兼容，但注意 /1 /L /u和/U的不同之处：
+ 
+  /w  相当于 [[:word:]]。
+  /W  相当于 [^[:word:]]。
+  /s  相当于 [[:space:]]。
+  /S  相当于 [^[:space:]]。
+  /d  相当于 [[:digit:]]。
+  /D  相当于 [^[:digit:]]。
+  /l  相当于 [[:lower:]]。
+  /L  相当于 [^[:lower:]]。
+  /u  相当于 [[:upper:]]。
+  /U  相当于 [^[:upper:]]。
+  /C  任何字符，相当于'.'。
+  /X  匹配任何Unicode组和字符串，例如"a/x 0301" (带重音号的字符)。
+  /Q  开始引用操作符，任何后面的字符被认为是字面意义，除非是/E 结束引用操作符的出现。
+  /E  结束引用操作符,终止/Q开始的序列。
+ 
+ 
+What gets matched?
+When the expression is compiled as a Perl-compatible regex then the matching algorithms will perform a depth first search on the state machine and report the first match found.
+ 
+When the expression is compiled as a POSIX-compatible regex then the matching algorithms will match the first possible matching string, if more than one string starting at a given location can match then it matches the longest possible string, unless the flag match_any is set, in which case the first match encountered is returned. Use of the match_any option can reduce the time taken to find the match - but is only useful if the user is less concerned about what matched - for example it would not be suitable for search and replace operations. In cases where their are multiple possible matches all starting at the same location, and all of the same length, then the match chosen is the one with the longest first sub-expression, if that is the same for two or more matches, then the second sub-expression will be examined and so on.
+ 
+The following table examples illustrate the main differences between Perl and POSIX regular expression matching rules:
+ 
+表达式
+文本
+POSIX最左长匹配
+ECMAScript深度优先搜索匹配
+a|ab
+xaby
+“ab”
+“a”
+.*([[:alnum:]]+).*
+" abc def xyz "
+$0 = " abc def xyz "
+$1 = "abc"
+$0 = " abc def xyz "
+$1 = "z"
+.*(a|xayy)
+zzxayyzz
+"zzxayy"
+"zzxa"
+ 
+ 
+ 
+These differences between Perl matching rules, and POSIX matching rules, mean that these two regular expression syntaxes differ not only in the features offered, but also in the form that the state machine takes and/or the algorithms used to traverse the state machine
+
+
+
+
+
+
+
+
+
+
+注：　转载请保证文章完整性 
+
+一、介绍 
+
+
+lexical_cast是boost中一个非常有用，常用，好用的库，我现在的小数据转换用的都是lexical_cast。 
+lexical_cast最大的特点是安全，包括长度安全，类型安全。 
+下面我来介绍下lexical_cast的基本使用方法。 
+
+Target lexical_cast(Source arg) 
+
+例如  
+#include <boost/lexical_cast.hpp>           //lexical_cast的头文件 
+using namespace std;                        //stl的域 
+using namespace boost;                      //boost的域 
+int main() 
+    { 
+    const double PI=3.1415926535; 
+    string str; 
+    str=lexical_cast<string>(PI); 
+    cout<<str;  
+    return 0; 
+    } 
+
+非常容易吧，简单也是他的优势之一。 
+
+
+二、异常 
+
+
+lexical_cast在执行失败时会抛出异常bad_lexical_cast 
+上面的例子改为 
+#include <boost/lexical_cast.hpp>           //lexical_cast的头文件 
+using namespace std;                        //stl的域 
+using namespace boost;                      //boost的域 
+int main() 
+    { 
+    try 
+        { 
+        string str="3.1415926535"; 
+        double PI=lexical_cast<double>(str); 
+        cout<<PI;  
+        return 0; 
+        } 
+    catch(bad_lexical_cast& E) 
+        { 
+        cout<<E.what()<<endl; 
+        } 
+    } 
+
+当str为ABCD时， 
+无法转成PI抛出异常 
+输出 
+bad lexical cast: source type value could not be interpreted as target 
+
+
+
+三、一个小例子 
+
+
+为了加深大加理解 
+下面使用lexical_cast实现一个简单的文本输入是否为指定类型的小程序 
+
+#include <boost/lexical_cast.hpp> 
+#include <iostream> 
+using namespace std;                        //stl的域 
+using namespace boost;                      //boost的域 
+template<typename _T,typename _R> 
+bool isElement(_R r) 
+    { 
+    try 
+        { 
+        lexical_cast<_T>(r);                 
+        return true;                        //转换成功 
+        } 
+    catch(...) 
+        { 
+        return false; 
+        } 
+    } 
+int main() 
+    { 
+    try 
+        { 
+
+        if(isElement<double>("3.14d159")) 
+            cout<<"YES"<<endl; 
+        else 
+            cout<<"NO"<<endl; 
+        } 
+    catch(bad_lexical_cast& E) 
+        { 
+        cout<<E.what()<<endl; 
+        } 
+    return 0;     
+    } 
+
+测试：isElement<double>("3.14d159") 输出：NO 
+测试：isElement<string>("3.14d159") 输出：YES 
+测试：isElement<long>("314159")     输出：YES 
+测试：isElement<long>("31.4159")    输出：NO 
+测试：isElement<char>("314159")     输出：NO 
+
+
+
+四、源码分析 
+： 
+
+#ifdef BOOST_NO_STRINGSTREAM        //我们知道stringstream和strstream分别是string和char*结构，lexical_cast考虑很全面的。 
+#include <strstream> 
+#else 
+#include <sstream> 
+#endif 
+
+// bad_lexical_cast是bad_cast的继承，所以很标准，支持和扩充性都很好。 
+    class bad_lexical_cast : public std::bad_cast  
+    { 
+    public: 
+        bad_lexical_cast() : 
+        source(&typeid(void)), target(&typeid(void)) 
+        { 
+        } 
+        bad_lexical_cast( 
+            const std::type_info &s, 
+            const std::type_info &t) : 
+            source(&s), target(&t) 
+        { 
+        } 
+//提供了两个返回type_info的函数，为我们跟踪调试类形转换起到很好 
+        const std::type_info &source_type() const 的做用。 
+
+(+1)
+转发贴子到你喜欢的吧
+◆◆
+回复
+1楼2006-01-02 15:09举报 |
+吧友221.239.187.*
+        { 
+            return *source; 
+        } 
+        const std::type_info &target_type() const 
+        { 
+            return *target; 
+        } 
+        virtual const char *what() const throw() 
+        { 
+            return "bad lexical cast: " 
+                   "source type value could not be interpreted as target"; 
+        } 
+        virtual ~bad_lexical_cast() throw() 
+        { 
+        } 
+    private: 
+        const std::type_info *source; 
+        const std::type_info *target; 
+    }; 
+
+type_info的具体用法是： 
+E.source_type().name()就可能到类型名。 
+
+核心转换部分，用的是留的概念，从流内数据的剩余情况与流转换成功与否情况来判断操作是否成功。在不加域时这里就像一个黑盒子。 
+
+            bool operator<<(const Source &input) 
+            { 
+                return !(stream << input).fail(); 
+            } 
+            template<typename InputStreamable> 
+            bool operator>>(InputStreamable &output) 
+            { 
+                return !is_pointer<InputStreamable>::value && 
+                       stream >> output && 
+                       (stream >> std::ws).eof(); 
+            } 
+            bool operator>>(std::string &output) 
+            { 
+                #if defined(BOOST_NO_STRINGSTREAM) 
+                stream << '\0'; 
+                #endif 
+                output = stream.str(); 
+                return true; 
+            } 
+
+
+
+仅提供该入口，具体实现被封在detail域里面。 
+    template<typename Target, typename Source> 
+    Target lexical_cast(Source arg) 
+    { 
+        detail::lexical_stream<Target, Source> interpreter; 
+        Target result; 
+
+        if(!(interpreter << arg && interpreter >> result)) 
+            throw_exception(bad_lexical_cast(typeid(Target), typeid(Source))); //抛出异常错误， 
+        return result; 
+    } 
+
+
+最后 
+我们可以发现 
+bad_lexical_cast(typeid(Target), typeid(Source) 与上面 
+bad_lexical_cast(const std::type_info &s,const std::type_info &t)  
+        :source(&s), target(&t) 
+
+之间的区别，在我看来是写倒了，不过不影响，也算是个不算bug的bug 
+
+
+
+五、总结 
+
+lexical_cast是强大的，但不是万能的，但在很多情况下他有着独特的优点，安全方便快捷！！！ 
+
+
+
+
+
+
+
+
+
+
+
+
+

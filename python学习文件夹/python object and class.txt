@@ -1,0 +1,466 @@
+pyhton 的class 与java，c++的大不相同，经过一段时间的迷茫，总结一下：
+1.pyhton里所有的东西都是对象，即class也是一个对象，java里的class虽然也是一个Class的实例，但基本上是一个数据和函数的集合体，是不放具体东西的，但python不一样，不一样的地方如下：
+a. python里所有对象可以动态地添加新的属性，当类动态地添加属性后，类的实例都能访问到该对象，其实这个很好理解，动态语言，只要遵循一定的解析规则就行
+b. 类里的变量不是以self,开头定义的都是类变量，相当于java,c++里的static，所有实例共享他们
+c.函数都是实现为descriptor
+d.每个实例有__dict__用来存放动态的属性
+e.继承：当继承后，python不会向java，c++那样在子类的实例中包含父类的实例，子类的实例是个全新的对象，与父类一点关系都没有，不会包含有父类的任何东西，继承只是在子类的__base__指向了父类，在查找函数，属性的过程中会查找父类，仅此而已，而这个父类也是class对象
+
+2 python为每一个对象预定义了一些属性和方法：.
+>>> Class1.__doc__ # 类型帮助信息
+'Class1 Doc.'
+>>> Class1.__name__ # 类型名称
+'Class1'
+>>> Class1.__module__ # 类型所在模块
+'__main__'
+>>> Class1.__bases__ # 类型所继承的基类
+(<type 'object'>,)
+>>> Class1.__dict__ # 类型字典，存储所有类型成员信息。
+<dictproxy object at 0x00D3AD70>
+>>> Class1().__class__ # 类型
+<class '__main__.Class1'>
+>>> Class1().__module__ # 实例类型所在模块
+'__main__'
+
+3 python的操作符重载以及更多
+a. 操作符重载：这一点python与java差不多，通过重载特殊的函数来实现，重载时需要记住函数的名字
+b. python做的更多，还可以改变attribute的get和set，默认是对__dict__进行操作，但你可以进行改变，具体的规则：（http://www.network-theory.co.uk/docs/pylang/Customizingattributeaccess.html）
+__getattr__(self, name)
+Called when an attribute lookup has not found the attribute in the usual places (i.e. it is not an instance attribute nor is it found in the class tree for self).
+__setattr__(self, name, value)
+Called when an attribute assignment is attempted.
+__getattribute__(self, name)
+Called unconditionally to implement attribute accesses for instances of the class.
+c  descriptor
+python可以做的更多，当你获取到一个属性时，可以调用一个事先定义的函数，这个函数对属性进行操作，将操作的结果返回给你，python所有的函数都是descriptor，当通过实例访问函数时，descriptor将self插入参数列表，并且调用这个函数（http://www.cafepy.com/article/python_attributes_and_methods/python_attributes_and_methods.html#id836155）
+
+4.python的多重继承
+由于python的继承主要是将几个对象建立关系，因此多重继承最重要的就是怎样在多个父类中寻找某个attribute，具体参考http://www.cafepy.com/article/python_attributes_and_methods/python_attributes_and_methods.html#id836155
+
+5.python寻找attribute的顺序：
+If attrname is a Python-provided attribute for objectname, return it.
+
+Check objectname.__class__.__dict__ for attrname. If it exists and is a data-descriptor, return the descriptor result. Search all bases of objectname.__class__ for the same case.
+
+Check objectname.__dict__ for attrname, and return if found. Unless objectname is a type object, in which case search its bases too. If it is a type object and a descriptor is found in the object or its bases, return the descriptor result.
+
+Check objectname.__class__.__dict__ for attrname. If it exists and is a non-data descriptor, return the descriptor result. If it exists, and is not a descriptor, just return it. If it exists and is a data descriptor, we shouldn't be here because we would have returned at point 2. Search all bases of objectname.__class__ for same case.
+
+Raise AttributeError
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+关于Python中的object类 [复制链接]
+ 
+管理员
+
+串个门加好友打招呼发消息	
+电梯直达1#
+ admin 发表于 2012-3-7 14:56:29 |只看该作者 |倒序浏览
+出处：http://www.zuibk.cn/the-object-class-on-python.html
+
+
+从object派生的话就是new style class，不继承object就是classic class。
+复制代码
+  
+
+
+
+new-style classes的由来
+
+new-style classes是python在2.2版本所加入的一个重要特性。所有的内建类型都是new-style 
+classes。引入new-style classes，就是为了逐步弥合python中内建类型和classic 
+classes之间的鸿沟。至此，内建类型终于可以和classic 
+classes一样，在定义类时作为基类被继承。但在完全统一之前，他们之间仍然存在巨大差别。其根本原因是他们各自的元类不同：classic 
+classes的元类是types.ClassType，而new-style classes的元类是type。
+
+换句话说，我们可以做出这样的定义：元类为types.ClassType的类是classic classes;元类为type的类是new-style classes。
+
+另外，根据后面的结论，我们还可以预先给出new-style 
+classes的另一种定义：object和所有直接或间接以它为基类的类是new-style 
+classes。这里的object是一个new-style class的内建类型, 它作为所有new-style classes的
+
+一个公共基类（详见下文）。
+复制代码
+
+
+new-style classes的创建
+
+python的类对象，直接由class语句生成。
+
+那么，class语句是怎样确定它所要生成的类对象的元类的呢？这个问题的答案，可以从class语句的工作原理中得出：
+
+解释器通过执行class语句，首先获得三方面的信息：类名，类的基类，类的属性和方法。
+
+其中类的基类被放入一个tuple中，类的属性和方法被放在一个dict中。
+
+接着，解释器就可以通过这些信息来确定元类了：
+
+.如果类属性中有“__metaclass__”,那么它所绑定的对象就是元类
+
+.否则，如果类定义了基类，那么就使用基类的元类(只要基类中有new-style classes，那么元类就为type )
+
+.否则，如果类所在的模块中有”__metaclass__”这样一个名字，它所绑定的对象就是元类
+
+.否则，类的元类就被默认为types.ClassType
+
+确定了元类，解释器就把类名、类的基类（tuple）、类的方法和属性(dict)作为初始化参数传给元类，以生成该元类的一个实例（即是类）。
+
+最后，解释器将类名与生成的类对象绑定在一起。
+
+所有其它的内建类型（即非object），就是通过继承一个公共的new-style基类object,而成为new-style classes的。
+
+由上面的叙述，我们可以得出创建一个new-style class的方法，共三种:
+
+1.继承一个内建类型
+
+>>> class MyDict(dict):
+
+pass
+
+>>> type(MyDict)
+
+<type ‘type’>
+
+2.设定类的__metaclass__属性
+
+>>> class MyNewStyle1:
+
+__metaclass__ = type
+
+>>> type(MyNewStyle)
+
+<type ‘type’>
+
+3.设定一个模块级的__metaclass__
+
+>>> __metaclass__ = type
+
+>>> class MyNewStyle2:
+
+pass
+
+>>> type(MyNewStyle2)
+
+<type ‘type’>
+
+还有一点值得注意，不管用以上哪种方式创建的new-style classes都最终会直接或间接地以object做为基类(这里就体现了元类对类的控制)。
+
+也就是说，即使如方法2，3那样没有直接写出继承语法，object也会成为基类：
+
+>>> MyNewStyle1.__bases__
+
+(<type ‘object’>,)
+
+>>> MyNewStyle2.__bases__
+
+(<type ‘object’>,)
+
+当然，如果上面提出的创建new-style classes的条件都不满足，就会创建一个原来的classic class
+
+>>> del __metaclass__ #消除前面引入的模块级的影响
+
+>>> class MyClassic:
+
+pass
+
+>>> type(MyClassic)
+
+<type ‘classobj’>
+
+>>> MyClassic.__bases__
+
+()
+复制代码
+
+
+
+new-style classes的使用
+
+new-style classes提供了一些新的特殊方法，让我们可以更好地控制类的行为。
+
+下面，我们讲几个常用的：
+
+1.__new__:
+
+__init__用来控制类的实例的初始化，而__new__控制初始化之前的行为—也就是实例的生成。
+
+因此__new__的第一个参数是类(cls)，而不是self。__new__的任务是返回一个所传入参数类(cls)的实例。
+
+但，真正能够生成一个new-style class的实例的，只有object.__new__。因此我们定义的__new__，在需
+
+要生成实例时，就应该调用它。
+
+利用__new__的这个特性，我们可以很容易实现Singleton Pattern，让我们的类只会产生一个唯一的对象
+
+>>> class Singleton(object):
+
+__instance = None
+
+def __new__(cls, *args, **kwd):
+
+if Singleton.__instance is None:
+
+Singleton.__instance = object.__new__(cls, *args, **kwd)
+
+return Singleton.__instance
+
+>>> class MyClass(Singleton):
+
+pass
+复制代码
+
+
+
+
+
+
+
+
+
+
+
+
+
+#!/usr/local/bin/python
+#-*- coding: UTF-8 -*-
+#mysql  import mysql.connector操作
+#写的可以能有问题这个类  大家在修改吧   还是基于MySQLdb  改吧
+#QQ29295842    python灰帽编程群292041723
+#  hmhacker.org 灰帽程序员论坛
+from __future__ import print_function
+import mysql.connector
+from mysql.connector import errorcode
+from datetime import date, datetime, timedelta
+import ConfigParser  #INI读取数据
+
+class mysql_handle():
+    def __init__(self):
+        self.mysql_host="localhost"
+        self.mysql_user="root"
+        self.mysql_pwd="29295842"
+        self.mysql_dbname="ftp"
+        self.mysql_db_mod=1
+        self.connect_handler=''
+        self.connect_config=''
+
+    def construct_connect_para(self):  #连接主机信息
+        try:
+            config = ConfigParser.ConfigParser()
+            config.readfp(open("Server.ini"))
+            self.mysql_host = config.get("DATA","Server")
+            self.mysql_user = config.get("DATA","Username")
+            self.mysql_pwd = config.get("DATA","password")
+            self.mysql_dbname = config.get("DATA","db")
+        except:
+            print (u"读取INI错误")
+        self.connect_config={
+            'user':self.mysql_user,
+            'password':self.mysql_pwd,
+            'host':self.mysql_host,
+            'database':self.mysql_dbname,
+            'charset':'utf8'  #默认即为utf8
+            }
+
+    def mysql_open(self):  #连接主机
+    #self.connect_handler=mysql.connector.connect(user=self.mysql_user,password=self.mysql_pwd,host=self.mysql_host,\
+    #database=self.mysql_dbname)
+        self.construct_connect_para()  #连接主机信息
+        try:
+            self.connect_handler=mysql.connector.connect(**self.connect_config)  #连接数据库
+            print(u'mysql 连接成功')
+            self.mysql_cursor()   #获取指针
+            return True
+        except mysql.connector.Error as err:
+            print(u"连接数据库失败: {}".format(err))
+            return file
+
+    def mysql_close(self):#关闭连接
+        self.connect_handler.close()  #关闭连接
+
+    def mysql_cursor(self):  #获取操作句柄
+        #self.mysql_connect()
+        #self.cnx=self.connect_handler
+        self.cursor=self.connect_handler.cursor() #获取操作句柄
+
+    def mysql_S(self):  #保存数据
+        try:
+            self.connect_handler.commit()   #提交   这句害死我了
+#        except:
+#            print (u"保存数据异常")
+        except self.connect_handler.connector.Error as err:
+            print(u"保存数据异常: {}".format(err))
+            #return 0
+
+    def mysql_select(self,data):  #查询数据
+        try:
+            #print (data)
+            #self.mysql_cursor()   #获取指针
+            #print ("222222222222")
+            self.cursor.execute(data)
+            for url in self.cursor:
+                #print(url[0])#保存100个URL地址
+                #print '%s-%s-%s'%(row[0],row[1],row[2])
+                return url[0]
+        except:
+            return "null123456"
+
+    def mysql_insert(self,data):  #添加数据
+        try:
+            #self.mysql_cursor()   #获取指针
+            return self.cursor.execute(data)
+        except:
+            #print (u"添加数据异常",data)
+            return 0
+
+    def mysql_update(self,data):  #修改数据
+        try:
+            #self.mysql_cursor()   #获取指针
+            return self.cursor.execute(data)
+        except:
+            #print (u"修改数据异常",data)
+            return 0
+
+    def mysql_delete(self,data):  #删除数据
+        try:
+            #self.mysql_cursor()   #获取指针
+            return self.cursor.execute(data)
+        except:
+            #print (u"删除数据异常",data)
+            return 0
+
+if __name__=="__main__":
+    new=mysql_handle()
+    if(new.mysql_open()):  #返回主机是否连接成功
+        data="insert into openurl(url,time) VALUES('www.bnia.cn','2013.02.02-01.57.57')"
+        data1="insert into openurl(url,time) VALUES('www.xxxxxxxbnia.cn','2013.02.02-01.57.57')"
+        #print insert
+        new.mysql_insert(data1)
+        if new.mysql_insert(data):
+            print ("1111111111222222222")
+        else:
+            print("失败")
+        new.mysql_S()
+#        data="select * from openftp where linkftp is NULL limit 1"
+#        new.mysql_cursor()   #获取指针
+#        new.cursor.execute(data)
+#        for url in new.cursor:
+#            print(url[0])#保存100个URL地址
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+都是照着说明文档来的，主要是为了以后忘记了能快一点想起来。
+
+1. 连接
+安装MySQL的时候，自动按照了Python的模块，如果没有的话，也可以在官网下载。
+
+看什么都不如看代码来得快：
+
+
+import mysql.connector
+conn=mysql.connector.connect(user='demo',password='123456',host='127.0.0.1',database='demo')
+c=conn.cursor()
+c.execute('show tables')
+c.fetchall()
+c.close()
+conn.close()
+
+这个代码和Oracle的差不多，看来使用的接口都一样。
+
+2. 执行SQL
+
+import mysql.connector
+conn=mysql.connector.connect(user='demo',password='123456',host='127.0.0.1',database='demo')
+c=conn.cursor()
+c.execute("insert into nice(id,name) values(7,'good')")
+c.execute("insert into nice(id,name) values(%s,%s)",(8,'nice'))
+conn.commit()
+c.close()
+conn.close()
+
+这个代码也和Oracle的差不多，看来使用的接口都一样。
+
+不同在于其占位符使用%s，传递变量使用tupe。
+
+3. 执行存储过程
+
+--SQL代码
+create procedure multiply(in p1 int,in p2 int,out pr int)
+begin
+set pr=p1*p2;
+end
+
+
+import mysql.connector
+conn=mysql.connector.connect(user='demo',password='123456',host='127.0.0.1',database='demo')
+c=conn.cursor()
+args=(5,5,0)
+r=c.callproc('multiply',args)
+c.close()
+conn.close()
+
+调用存储过程的代码和Oracle的差不多。
+
+差别在于传递变量使用tupe，对传递的变量不做修改，直接返回修改后的变量。
+
+4. 调用函数
+
+--SQL代码
+create function f1(p1 int) returns int
+begin
+return p1;
+end
+
+
+#Python代码
+import mysql.connector
+conn=mysql.connector.connect(user='demo',password='123456',host='127.0.0.1',database='demo')
+c=conn.cursor()
+args=(5,5,0)
+c.execute('select f1(%s)',(1,))
+c.fetchall()
+c.close()
+conn.close()

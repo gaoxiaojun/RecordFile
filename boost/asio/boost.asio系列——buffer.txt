@@ -1,0 +1,81 @@
+创建buffer
+
+在io操作中，对数据的读写大都是在一个缓冲区上进行的，在asio框架中，可以通过asio::buffer函数创建一个缓冲区来提供数据的读写。buffer函数本身并不申请内存，只是提供了一个对现有内存的封装。
+
+    char d1[128];
+    size_t bytes_transferred = sock.receive(asio::buffer(d1));
+
+直接用字符串做buffer也是常见的形式：
+
+    string str = " hello world " ;
+    size_t bytes_transferred = sock.send(asio::buffer(str));
+
+除了这些基础类型外，也可以使用stl中的容器，非常方便。
+
+    asio::buffer(std::vector<char>(128));
+    asio::buffer(std::array<char,128>());
+
+将buffer还原为数据对象
+
+前面的操作是通过把数据对象封装成buffer，在使用过程中往往也需要把buffer还原为数据对象。
+
+    char* p1 = asio::buffer_cast<char*>(buffer);
+
+获取buffer大小
+
+可以通过buffer_size函数获取buffer大小。
+
+    size_t s1 = asio::buffer_size(buf);
+
+读写buffer
+
+读写buffer一般都是和io对象相关联的，io对象成员函数中就提供了读写操作。以tcp::socket对象为例，它提供了read_some和write_some来实现读写操作：
+
+    std::array<char, 128> buf;
+    sock.read_some(asio::buffer(buf));
+
+另外，asio名字空间下也提供了通用的read、write函数，通过它们可以实现更加高级的读写功能
+
+    size_t bytes_transfered = asio::read(sock, asio::buffer(buf), asio::transfer_all(), err);
+
+这里我就使用了transfer_all标记强制读满buffer才返回，另外还有两个比较常用的标记transfer_at_least()和transfer_exactly()，非常方便。
+
+streambuf
+
+asio::streambuf则是提供了一个流类型的buffer，它自身是能申请内存的。它的好处是可以通过stl的stream相关函数实现缓冲区操作，处理起来更加方便。
+
+    //通过streambuf发送数据
+    asio::streambuf b;
+    std::ostream os(&b);
+    os << "Hello, World!\n";
+
+    size_t n = sock.send(b.data());    // try sending some data in input sequence
+    b.consume(n); // sent data is removed from input sequence
+
+ 
+
+    //通过streambuf读数据
+    asio::streambuf b;
+    asio::streambuf::mutable_buffers_type bufs = b.prepare(512);    // reserve 512 bytes in output sequence
+    size_t n = sock.receive(bufs);
+    b.commit(n);    // received data is "committed" from output sequence to input sequence
+
+    std::istream is(&b);
+    std::string s;
+    is >> s;
+
+另外，asio名字空间下还提供了一个的read_until函数，可以实现读到满足指定条件的字符串为止，对于解析协议来说非常有用。
+
+    size_t n = asio::read_until(sock, stream, '\n');
+    asio::streambuf::const_buffers_type bufs = sb.data();
+    std::string line(asio::buffers_begin(bufs), asio::buffers_begin(bufs) + n);
+
+这个指定条件除了是字符串外，还可以是正则表达式，非常给力。这也是asio库为什么要依赖于boost.regex的原因。（虽然regex已经标准化了，但仍得使用boost.regex库。等什么时候asio也标准化后估计就可以直接使用std.regex库了）
+
+自定义内存分配
+
+异步IO操作时往往会申请动态内存，使用完后就释放掉；在IO密集型的场景中，频繁的申请释放内存对性能会有较大影响。为了避免这个问题，asio提供了一个内存池式的模型 asio_handler_allocate 和 asio_handler_deallocate 来复用内存。
+
+例子我就不写了，可以参看boost官方文档示例，或者网上的这篇文章。
+
+就我个人而言，并不赞成在项目的前期就使用上这个allocator，毕竟这样带来了很大的代码复杂度。而是作为一个性能优化点，在后期性能优化的时候再试试用它有没有效果。并且内存池的也有很多不同的方案，google的google-perftools也值得一试。

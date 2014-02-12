@@ -1,0 +1,131 @@
+// 工作对象
+boost::asio::io_service::work work( io_service );
+work.reset();// 将工作从io_service中删除
+
+// 函数对象
+boost::bind( &WorkerThread, io_service )
+
+// 智能指针
+shared_ptr<T* t> p(new T);// 使用智能指针去他妹的没关句柄
+
+// 线程
+boost::thread thread1( boost::bind( ... ) );
+
+// 线程池
+boost::thread_group worker_threads;
+worker_threads.create_thread( boost::bind( ... ) );
+worker_threads.join_all();
+boost::this_thread::get_id();// 取得线程id,不是windows的id
+
+// 锁
+boost::mutex global_stream_lock;
+global_stream_lock.lock();
+global_stream_lock.unlock();
+
+// 睡
+boost::this_thread::sleep(boost::posix_time::milliseconds( 1000 ));
+
+// 异常
+try{
+throw( std::runtime_error( "Oops!" ) );
+}catch( std::exception & ex ){
+// 输出"Oops!"
+std::cout << ex.what() << std::endl;
+}
+boost::system::error_code ec;
+
+// 叫它服务吧
+io_service.run(ec);// 同步执行
+io_service.poll();// 异步执行
+io_service.stop();// 退出,所有work停止
+io_service.dispatch( boost::bind( ... ) );// 实时执行
+io_service.post( boost::bind( ... ) );// 迟后执行
+
+// 叫它序列化吧
+boost::asio::io_service::strand strand( *io_service );
+strand.post( boost::bind( ... ) );// 次序优先执行
+io_service->post( strand.wrap( boost::bind( ... ) ) );// 效率优先执行
+
+
+// 时间
+boost::posix_time::ptime pt = boost::posix_time::microsec_clock::local_time();
+const boost::posix_time::time_duration delta = pt1 - pt2;
+
+
+// 定时器
+boost::asio::deadline_timer timer( *io_service );
+timer.expires_from_now( boost::posix_time::seconds( 5 ) );//boost::posix_time::milliseconds(5000);
+timer.async_wait( TimerHandler );
+
+void TimerHandler( const boost::system::error_code & error,
+boost::shared_ptr< boost::asio::deadline_timer > timer
+)
+{
+// 用了strand对象不需要加锁
+}
+timer->async_wait( boost::bind( &TimerHandler, _1, timer ) );// 回调函数的错误码由系统提供，这里第一参数就用占位符代替
+timer->cancel(ec)
+
+// 端点
+std::string str1;
+boost::asio::ip::address addr1 = endpoint.address();
+unsigned short port1 = endpoint.port();
+str1 = addr1.to_string() + ":" + boost::lexical_cast< std::string >( port1 ) + "\r\n";
+
+// socket
+boost::shared_ptr< boost::asio::ip::tcp::socket > sock(
+                new boost::asio::ip::tcp::socket( *io_service )
+                );
+sock->is_open();
+sock->remote_endpoint();
+sock->local_endpoint();
+
+// 解析器
+boost::asio::ip::tcp::socket sock( *io_service );
+boost::asio::ip::tcp::resolver resolver( *io_service );
+boost::asio::ip::tcp::resolver::query query( 
+"www.google.com", 
+boost::lexical_cast< std::string >( 80 )
+);
+boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve( query );
+boost::asio::ip::tcp::endpoint endpoint = *iterator;
+
+// 接受器
+boost::shared_ptr< boost::asio::ip::tcp::acceptor > acceptor(
+                new boost::asio::ip::tcp::acceptor( *io_service )
+        );
+
+// 连接
+sock.connect( endpoint );// 同步连接
+
+void OnConnect( const boost::system::error_code & ec, 
+boost::shared_ptr< boost::asio::ip::tcp::socket > sock )
+{
+}
+sock->async_connect( endpoint, boost::bind( OnConnect, _1, sock ) );// 异步连接
+
+
+// 接受
+boost::shared_ptr< boost::asio::ip::tcp::acceptor > acceptor(
+                new boost::asio::ip::tcp::acceptor( *io_service )
+);
+void OnAccept( const boost::system::error_code & ec, 
+boost::shared_ptr< boost::asio::ip::tcp::socket > sock )
+{
+...
+}
+// 跟API编程一样，先绑定后监听最后接受
+acceptor->open( endpoint.protocol() );
+acceptor->set_option( boost::asio::ip::tcp::acceptor::reuse_address( false ) );
+acceptor->bind( endpoint );
+acceptor->listen( boost::asio::socket_base::max_connections );
+acceptor->async_accept( *sock, boost::bind( OnAccept, _1, sock ) );
+...
+//acceptor->cancel( ec );
+acceptor->close( ec );
+
+
+// 断开
+boost::system::error_code ec;
+sock.shutdown( boost::asio::ip::tcp::socket::shutdown_both, ec );
+sock.close( ec );

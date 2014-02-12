@@ -1,0 +1,188 @@
+问一个关于mysql的问题:mysql_query 与 mysql_real_query的区别? 也就是什么时候用第一个,什么时候用第二个?
+
+帮助文档是这样说的 :
+    两者的差别在于，mysql_query()预期的查询为指定的、由Null终结的字符串，而mysql_real_query()预期的是计数字符串。
+
+感觉说的没有什么意义; 都是要执行整条语句的;  
+
+请问大家都是如何用的?
+分享到：  
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理 回复次数：14
+
+ACMAIN_CHM  
+ACMAIN_CHM
+等级：
+更多勋章
+#1 得分：0 回复于： 2009-11-18 16:50:18
+mysql_query() cannot be used for statements that contain binary data; you must use mysql_real_query() instead. (Binary data may contain the “\0” character, which mysql_query() interprets as the end of the statement string.) In addition, mysql_real_query() is faster than mysql_query() because it does not call strlen() on the statement string. 
+独一无二的职位：开源社区经理　对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+ACMAIN_CHM  
+ACMAIN_CHM
+等级：
+更多勋章
+#2 得分：0 回复于： 2009-11-18 16:52:07
+mysql_query() cannot be used for statements that contain binary data; you must use mysql_real_query() instead. (Binary data may contain the “\0” character, which mysql_query() interprets as the end of the statement string.) In addition, mysql_real_query() is faster than mysql_query() because it does not call strlen() on the statement string. 
+
+mysql_query()  不能传二进制BLOB字段，因为二进制信息中的\0会被误判为语句结束。 mysql_real_query()  则可以。
+另外  mysql_real_query() 会比mysql_query() 略快一点儿。因为它不去检查你的SQL语句长度是多少。
+【免积分下载】2013上半年超人气精华资源汇总对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+cabinriver
+cabinriver
+等级：
+#3 得分：0 回复于： 2009-11-18 16:52:11
+现在碰到一个奇怪的问题, 一个有文字符串的SQL语句;
+
+用 mysql_query  可以正确执行]
+而用 mysql_real_query 却返回错误, 不知道这是为什么?
+软件开发者编程大赛万元大奖等你拿对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+ACMAIN_CHM  
+ACMAIN_CHM
+等级：
+更多勋章
+#4 得分：0 回复于： 2009-11-18 16:53:38
+引用
+而用 mysql_real_query 却返回错误, 不知道这是为什么?
+
+你的调用方法估计不对。
+int mysql_real_query(MYSQL *mysql, const char *stmt_str, unsigned long length) 
+
+你的语句是什么？
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+cabinriver
+cabinriver
+等级：
+#5 得分：0 回复于： 2009-11-18 16:56:31
+引用 3 楼 cabinriver 的回复:
+现在碰到一个奇怪的问题, 一个有文字符串的SQL语句;
+
+ 用 mysql_query  可以正确执行]
+ 而用 mysql_real_query 却返回错误, 不知道这是为什么?
+
+在执行这一条语句的时候 
+sprint_s(sql, _T("insert into user(user_name) values('%s')"),_T("张三"));
+
+用mysql_query没问题  可以正常的写入到数据库
+可是 用 mysql_real_query 却返回这个错误
+
+ERROR 1064 : You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near '' at line 1"	char [512]
+
+请问这是什么原因呢
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+trainee
+trainee
+等级：
+#6 得分：0 回复于： 2009-11-18 16:57:31
+mysql_real_query比mysql_query多了个参数: 字符串query的长度, 所以适合有二进制数据的query, 而mysql_query的字符串query不能包含二进制,因为它以\0为结尾
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+ACMAIN_CHM  
+ACMAIN_CHM
+等级：
+更多勋章
+#7 得分：0 回复于： 2009-11-18 16:58:06
+引用
+你的语句是什么？
+
+你的C的语句是什么？
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+cabinriver
+cabinriver
+等级：
+#8 得分：0 回复于： 2009-11-18 16:58:38
+引用 4 楼 acmain_chm 的回复:
+引用而用 mysql_real_query 却返回错误, 不知道这是为什么?
+
+ 你的调用方法估计不对。
+ int mysql_real_query(MYSQL *mysql, const char *stmt_str, unsigned long length)
+
+ 你的语句是什么？
+
+这样用的 
+MYSQL *pdb = m_pConn->GetDBHandle();
+mysql_real_query(pdb, pszSql, (unsigned long)_tcsclen(pszSql));
+
+//pszSql 是sql语句
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+ACMAIN_CHM  
+ACMAIN_CHM
+等级：
+更多勋章
+#9 得分：0 回复于： 2009-11-18 16:59:12
+应该是你的 
+int mysql_real_query(MYSQL *mysql, const char *stmt_str, unsigned long length) 
+
+这个length 没写对，不过没看到你的代码之前，只是猜测。
+
+问题说明越详细，回答也会越准确！参见如何提问。（提问的智慧）
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+cabinriver
+cabinriver
+等级：
+#10 得分：0 回复于： 2009-11-18 17:02:05
+(unsigned long)_tcsclen(pszSql) 
+
+这样获取sql的长度不对吗?
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+ACMAIN_CHM  
+ACMAIN_CHM
+等级：
+更多勋章
+#11 得分：0 回复于： 2009-11-18 17:06:23
+debug 中看一下你的 pszSql,  的内容是什么，然后再看一下 (unsigned long)_tcsclen(pszSql) 的结果是什么？
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+cabinriver
+cabinriver
+等级：
+#12 得分：0 回复于： 2009-11-18 17:11:43
+引用 11 楼 acmain_chm 的回复:
+debug 中看一下你的 pszSql,  的内容是什么，然后再看一下 (unsigned long)_tcsclen(pszSql) 的结果是什么？
+
+我刚调试了一下 
+pszSql的值为	0x0012f3ec "insert into user(user_name) values('天')"	const char *
+
+(unsigned long)_tcsclen(pszSql) 的值为 39
+
+好像没什么问题啊
+
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+ACMAIN_CHM  
+ACMAIN_CHM
+等级：
+更多勋章
+#13 得分：50 回复于： 2009-11-18 18:48:38
+Assembly code
+?
+1
+2
+insert into user(user_name) values('天')
+12345678901234567890123456789012345678901234567890
+
+
+
+建议你测量一下这个字符串的长度。（贴到记录本中一看就明白了） 希望它是 39, 注意你的中文字符是两个字节。
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+cabinriver
+cabinriver
+等级：
+#14 得分：0 回复于： 2009-11-19 11:27:00
+引用 13 楼 acmain_chm 的回复:
+Assembly codeinsertinto user(user_name) values('天')12345678901234567890123456789012345678901234567890
+
+
+ 建议你测量一下这个字符串的长度。（贴到记录本中一看就明白了） 希望它是 39, 注意你的中文字符是两个字节。
+
+果然是长度的问题; 用_tcsclen获取字符串长度时, 汉字的长度是按1算的
+
+多谢了

@@ -1,0 +1,170 @@
+一开始，我看的是boost::aligned_storage<std::size_t Size, std::size_t Align>，
+实在不明白这个东西干嘛用。于是google了一天，还是不明白。后来发现TR1里面也有这个东西。。
+
+查了相关的资料：
+http://en.cppreference.com/w/cpp/types/aligned_storage
+这个网址上说：这个模板类为定义了一个大小为Size对齐方式为Align的一个类型type，这个type是用来创建未初始化内存。创建出的内存可以转化为大小小与Size的POD类型对象。（我是这么理解的）
+
+MSDN上
+http://msdn.microsoft.com/en-us/library/bb983063.aspx
+给的例子，大概就是创建了一个大小为size(int)，对齐方式为size(double)的类型。并且验证了一下这个对齐方式的大小。
+
+不过我始终不明白 aligned_storage 到底有啥用？创建内存池？char数组不也行么？
+不明白 aligned_storage<1024>::type buf 和 char buf[1024] 有何区别？
+这两种buf转化出来的对象难道有什么区别不成？  
+MyType *pMyData = reinterpret_cast<MyType*>(&buf); 这个语句，在上面两种buf定义下，到底有何区别？
+
+难道是因为char有可能不一定占用1byte，所以用aligned_storage?
+那就算char变大了，也可以用sizeof来计算啊。。
+分享到：更多0 
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理 回复次数：10
+
+ri_aje
+ri_aje
+等级：
+#1 得分：0 回复于： 2012-12-10 02:18:58
+数组不保证内存对齐，aligned_storage 提供这种保证。
+文思海辉第一届在线编程大赛对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+turingo
+图灵狗
+等级：
+57
+#2 得分：20 回复于： 2012-12-10 09:05:45
+内存对齐可用于高速缓存或页边界，更有一些是硬件的刚性要求，比如显示设备或者是摄像头会要求它们所指向的buffer必须对齐，否则会直接忽略低位地址线。
+关注CSDN论坛微博 送CSDN积分大礼包对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+lixiang996
+lixiang996
+等级：
+#3 得分：0 回复于： 2012-12-10 10:14:37
+引用 2 楼 turingo 的回复:
+内存对齐可用于高速缓存或页边界，更有一些是硬件的刚性要求，比如显示设备或者是摄像头会要求它们所指向的buffer必须对齐，否则会直接忽略低位地址线。
+
+但是，强制内存对齐，只需要在类定义前使用 #pragma pack(n) 就可以了啊。
+C/C++ code
+?
+1
+2
+3
+4
+5
+6
+7
+8
+#pragma pack(4)
+struct MyStruct
+{
+    bool a;
+    int  b;
+    char c;
+};
+#pragma pack()
+
+这样的话，sizeof(MyStruct)值为12。
+
+而以下用法：
+C/C++ code
+?
+1
+2
+3
+4
+5
+6
+7
+8
+char buf1[1024];
+boost::aligned_storage<1024,4>::type buf2;
+ 
+MyStruct* p = reinterpret_cast<MyStruct*>(&buf1[0]);
+cout<<sizeof(*p)<<endl; // 输出为12
+ 
+MyStruct* p = reinterpret_cast<MyStruct*>(buf2.address());
+cout<<sizeof(*p)<<endl; // 输出也为12
+
+就算我查看他们的地址：&(p->a),&(p->b)，&(p->c)，发现也都是对齐的。
+这样的话，buf1和buf2具体区别在哪儿呢？
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+lixiang996
+lixiang996
+等级：
+#4 得分：0 回复于： 2012-12-10 10:16:28
+代码有点错误，改一下。不过昨天我在VS2010上都运行过了，发现强制转换的指针，解引用的时候，是按照#pragma pack(4)的对齐方式来的。
+C/C++ code
+?
+1
+2
+3
+4
+5
+6
+7
+8
+char buf1[1024];
+boost::aligned_storage<1024,4>::type buf2;
+  
+MyStruct* p = reinterpret_cast<MyStruct*>(&buf1[0]);
+cout<<sizeof(*p)<<endl; // 输出为12
+  
+p = reinterpret_cast<MyStruct*>(buf2.address());
+cout<<sizeof(*p)<<endl; // 输出也为12
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+turingo
+图灵狗
+等级：
+57
+#5 得分：0 回复于： 2012-12-10 10:32:14
+pack也是可以实现对齐的，我看主要还是便于管理吧。
+
+引用 4 楼 lixiang996 的回复:
+代码有点错误，改一下。不过昨天我在VS2010上都运行过了，发现强制转换的指针，解引用的时候，是按照#pragma pack(4)的对齐方式来的。
+C/C++ code?12345678char buf1[1024];boost::aligned_storage<1024,4>::type buf2;  MyStruct* p = reinterpret_cast<My……
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+ri_aje
+ri_aje
+等级：
+#6 得分：40 回复于： 2012-12-10 11:02:42
+pragma pack 是非标准扩展，vs 上能用并不代表别地也能用，aligned_storage 具有标准定义行为。
+
+char [1024] 只是在你运行的这几次刚好多对齐到指定边界，其他情况下不一定要这样；again, 标准要求 aligned_storage 一定要对齐到边界。话说回来，char[1024] 在栈上，编译器调整 esp 的时候也都基本都是做基本对齐，所以你的例子程序都刚好没问题。不过这属于实现细节，不受标准规范，因此不可依赖。
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+lixiang996
+lixiang996
+等级：
+#7 得分：0 回复于： 2012-12-10 11:18:47
+引用 6 楼 ri_aje 的回复:
+pragma pack 是非标准扩展，vs 上能用并不代表别地也能用，aligned_storage 具有标准定义行为。
+
+char [1024] 只是在你运行的这几次刚好多对齐到指定边界，其他情况下不一定要这样；again, 标准要求 aligned_storage 一定要对齐到边界。话说回来，char[1024] 在栈上，编译器调整 esp 的时候也都基本都是做基……
+
+听你这么一说，我明白了一些。
+虽然一般来说现代编译器对待这种 char[1024]都是对齐处理的，但是这不受标准约束？
+所以用aligned_storage会更加保险和跨平台？
+
+也就是说， char[1024] 的首地址不一定是一个字的首地址。而aligned_storage的首地址一定是字的首地址。（也即首地址对齐）
+
+不知我理解是否有误。
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+ri_aje
+ri_aje
+等级：
+#8 得分：40 回复于： 2012-12-10 11:42:32
+>>虽然一般来说现代编译器对待这种 char[1024]都是对齐处理的，但是这不受标准约束？
+不受，反正我在标准里没找着相关的约束。
+
+>>所以用aligned_storage会更加保险和跨平台？
+yup,因为现在有 std::aligned_storage 了。
+
+>>也就是说， char[1024] 的首地址不一定是一个字的首地址。
+不一定。
+
+>>而aligned_storage的首地址一定是字的首地址。（也即首地址对齐）
+如果指定的 alignment 大小是一个字的话。
+
+最后说一下，pragma pack 的功能好像和 aligned_storage 不完全一样，看你的例子前者要求每一个成员的地址对齐，后者做不到这点，貌似只能通过 alignas 完成了。

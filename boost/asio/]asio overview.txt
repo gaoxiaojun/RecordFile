@@ -1,0 +1,211 @@
+理论基础
+许多应用程序以某种方式和外界交互，例如文件,网络,串口或者终端。某些情况下例如网络，独立IO操作需要很长时间才能完成，这对程序开发形成了一个特殊的挑战。
+
+Boost.Asio库提供管理这些长时间操作的工具，并且不需要使用基于线程的并发模型和显式的锁。
+
+Asio库致力于如下几点：
+
+移植性
+
+高负载
+
+效率
+
+基于已知API例如BSD sockets的模型概念
+
+易于使用
+
+作为进一步抽象的基础
+
+虽然asio主要关注网络，它的异步概念也扩展到了其他系统资源，例如串口，文件等等。
+
+主要概念和功能
+基本架构（略）
+Proactor设计模式：无需额外线程的并发机制（略）
+这种模型感觉很像aio或者iocp，而select,epoll则应该类似于Reactor。
+
+线程和Asio
+
+线程安全
+
+一般来说，并发使用不同的对象是安全的。但并发使用同一个对象是不安全的。不过io_service等类型的并发使用是安全的。
+
+线程池
+
+多个线程可以同时调用io_service::run，多个线程是平等的。
+
+内部线程
+
+为了某些特定功能，asio内部使用了thread以模拟异步，这些thread对用户而言是不可见的。它们都符合如下原则：
+
+它们不会直接调用任何用户代码
+他们不会被任何信号中断。
+注意，如下几种情况违背了原则1。
+
+ip::basic_resolver::async_resolve() 所有平台
+
+basic_socket::async_connect() windows平台
+
+涉及null_buffers()的任何操作 windows平台
+
+以上是容易理解的，asio本身尽可能不创建thread，某些情况下，例如connect，由于windows 2k平台下并不提供异步connect，所以asio只能用select模拟，这种情况下不得不创建新线程。windows xp下提供connectex，但考虑到兼容性，asio似乎并未使用。
+
+asio完全保证然后异步完成函数都仅在运行io_service::run的线程中被调用。
+
+同时，创建并且管理运行io_service::run的线程是用户的责任。
+
+Strands：使用多线程且无需显式锁
+
+有3种方式可以显式或隐式使用锁。
+
+只在一个线程中调用io_service::run，那么所有异步完成函数都会在该线程中串行化调用
+应用逻辑保证
+直接使用strand
+strand::wrap可以创建一个包裹handler用于post或其他异步调用。
+
+Buffers
+Asio支持多个buffer同时用于读写，类似于WSARecv里面的WSABUF数组。mutable_buffer和const_buffer类似于WSABUF，MutableBufferSequence和ConstBufferSequence类似于WSABUF的容器。
+
+Buffer本身不分配释放内存，该数据结构很简单。
+
+vc8及以上的编译器在debug编译时缺省支持检查越界等问题。其他编译器可以用BOOST_ASIO_DISABLE_BUFFER_DEBUGGING打开这个开关。
+
+流，不完全读和不完全写
+许多io对象是基于流的，这意味着：
+
+没有消息边界，数据是连续的字节。
+读或者写操作可能仅传送了要求的部分字节，这称之为不完全读/写。
+read_some，async_read_some，write_some，async_write_some则为这种不完全读/写。
+
+系统API一般均为这种不完全读写。例如WSASend，WSARecv等等。
+
+一般来说都需要读/写特定的字节。可以用read，async_read，write，async_write。这些函数在未完成任务之前会持续调用不完全函数。
+
+EOF
+read，async_read，read_until，async_read_until在遇到流结束时会产生一个错误。这是很合理的，例如要求读4个字节，但仅读了1个字节socket就关闭了。在handle_read中error_code将提示一个错误。
+
+Reactor类型的操作
+有些应用程序必须集成第3方的库，这些库希望自己执行io操作。
+
+这种操作类似于select，考察select和aio的区别，前者是得到完成消息，然后再执行同步读操作，aio是预发异步读操作，在完成消息到来时，读操作已经完成。
+
+null_buffer设计用来实现这类操作。
+
+ip::tcp::socket socket(my_io_service);
+...
+ip::tcp::socket::non_blocking nb(true);
+socket.io_control(nb);
+...
+socket.async_read_some(null_buffers(), read_handler);
+...
+void read_handler(boost::system::error_code ec)
+{
+  if (!ec)
+  {
+    std::vector<char> buf(socket.available());
+    socket.read_some(buffer(buf));
+  }
+}
+注意一般asio的用法和这明显不同。以上代码非常类似select的方式。
+常规代码是：
+boost::asio::async_read(socket_,boost::asio::buffer(data,length),handle_read);
+void handle_read(){…}
+行操作
+许多应用协议都是基于行的，例如HTTP,SMTP,FTP。为了简化这类操作，Asio提供read_until以及async_read_until。
+例如：
+class http_connection
+{
+  ...
+
+  void start()
+  {
+    boost::asio::async_read_until(socket_, data_, "/r/n",
+        boost::bind(&http_connection::handle_request_line, this, _1));
+  }
+
+  void handle_request_line(boost::system::error_code ec)
+  {
+    if (!ec)
+    {
+      std::string method, uri, version;
+      char sp1, sp2, cr, lf;
+      std::istream is(&data_);
+      is.unsetf(std::ios_base::skipws);
+      is >> method >> sp1 >> uri >> sp2 >> version >> cr >> lf;
+      ...
+    }
+  }
+
+  ...
+
+  boost::asio::ip::tcp::socket socket_;
+  boost::asio::streambuf data_;
+};
+read_until，async_read_until支持的判断类型可以是char,string以及boost::regex，它还支持自定义匹配函数。
+以下例子是持续读，一直到读到空格为止:
+typedef boost::asio::buffers_iterator<
+    boost::asio::streambuf::const_buffers_type> iterator;
+
+std::pair<iterator, bool>
+match_whitespace(iterator begin, iterator end)
+{
+  iterator i = begin;
+  while (i != end)
+    if (std::isspace(*i++))
+      return std::make_pair(i, true);
+  return std::make_pair(i, false);
+}
+...
+boost::asio::streambuf b;
+boost::asio::read_until(s, b, match_whitespace);
+ 
+
+以下例子是持续读，直到读到特定字符为止：
+class match_char
+{
+public:
+  explicit match_char(char c) : c_(c) {}
+
+  template <typename Iterator>
+  std::pair<Iterator, bool> operator()(
+      Iterator begin, Iterator end) const
+  {
+    Iterator i = begin;
+    while (i != end)
+      if (c_ == *i++)
+        return std::make_pair(i, true);
+    return std::make_pair(i, false);
+  }
+
+private:
+  char c_;
+};
+
+namespace boost { namespace asio {
+  template <> struct is_match_condition<match_char>
+    : public boost::true_type {};
+} } // namespace boost::asio
+...
+boost::asio::streambuf b;
+boost::asio::read_until(s, b, match_char('a'));
+ 
+
+自定义内存分配
+Asio很多地方都需要复制拷贝handlers，缺省情况下，使用new/delete，如果handlers提供
+
+void* asio_handler_allocate(size_t, ...);
+void asio_handler_deallocate(void*, size_t, ...);
+则会调用这两个函数来进行分配和释放。
+The implementation guarantees that the deallocation will occur before the associated handler is invoked, which means the memory is ready to be reused for any new asynchronous operations started by the handler.
+
+如果在完成函数中再发起一个异步请求，那么这块内存可以重用，也就是说，如果永远仅有一个异步请求在未完成的状态，那么仅需要一块内存就足够用于asio的handler copy了。
+
+The custom memory allocation functions may be called from any user-created thread that is calling a library function. The implementation guarantees that, for the asynchronous operations included the library, the implementation will not make concurrent calls to the memory allocation functions for that handler. The implementation will insert appropriate memory barriers to ensure correct memory visibility should allocation functions need to be called from different threads.
+
+以上这段不很清楚，不明白多线程环境下，asio_handler_allocate是否要考虑同步问题。
+
+Custom memory allocation support is currently implemented for all asynchronous operations with the following exceptions:
+
+ip::basic_resolver::async_resolve() on all platforms.
+basic_socket::async_connect() on Windows.
+Any operation involving null_buffers() on Windows, other than an asynchronous read performed on a stream-oriented socket.

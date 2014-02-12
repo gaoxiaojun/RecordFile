@@ -1,0 +1,311 @@
+坚持每天学一点，每天积累一点点，作为自己每天的业余收获，这个文章是我在吃饭的期间写的，利用自己零散的时间学了一下python操作MYSQL，所以整理一下。
+我采用的是MySQLdb操作的MYSQL数据库。先来一个简单的例子吧：
+?
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+import MySQLdb
+ 
+try:
+    conn=MySQLdb.connect(host='localhost',user='root',passwd='root',db='test',port=3306)
+    cur=conn.cursor()
+    cur.execute('select * from user')
+    cur.close()
+    conn.close()
+except MySQLdb.Error,e:
+     print "Mysql Error %d: %s" % (e.args[0], e.args[1])
+　　请注意修改你的数据库，主机名，用户名，密码。
+下面来大致演示一下插入数据，批量插入数据，更新数据的例子吧：
+?
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+import MySQLdb
+ 
+try:
+    conn=MySQLdb.connect(host='localhost',user='root',passwd='root',port=3306)
+    cur=conn.cursor()
+     
+    cur.execute('create database if not exists python')
+    conn.select_db('python')
+    cur.execute('create table test(id int,info varchar(20))')
+     
+    value=[1,'hi rollen']
+    cur.execute('insert into test values(%s,%s)',value)
+     
+    values=[]
+    for i in range(20):
+        values.append((i,'hi rollen'+str(i)))
+         
+    cur.executemany('insert into test values(%s,%s)',values)
+ 
+    cur.execute('update test set info="I am rollen" where id=3')
+ 
+    conn.commit()
+    cur.close()
+    conn.close()
+ 
+except MySQLdb.Error,e:
+     print "Mysql Error %d: %s" % (e.args[0], e.args[1])
+　　请注意一定要有conn.commit()这句来提交事务，要不然不能真正的插入数据。
+运行之后我的MySQL数据库的结果就不上图了。
+?
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+import MySQLdb
+ 
+try:
+    conn=MySQLdb.connect(host='localhost',user='root',passwd='root',port=3306)
+    cur=conn.cursor()
+     
+    conn.select_db('python')
+ 
+    count=cur.execute('select * from test')
+    print 'there has %s rows record' % count
+ 
+    result=cur.fetchone()
+    print result
+    print 'ID: %s info %s' % result
+ 
+    results=cur.fetchmany(5)
+    for r in results:
+        print r
+ 
+    print '=='*10
+    cur.scroll(0,mode='absolute')
+ 
+    results=cur.fetchall()
+    for r in results:
+        print r[1]
+     
+ 
+    conn.commit()
+    cur.close()
+    conn.close()
+ 
+except MySQLdb.Error,e:
+     print "Mysql Error %d: %s" % (e.args[0], e.args[1])
+　　运行结果就不贴了，太长了。
+查询后中文会正确显示，但在数据库中却是乱码的。经过我从网上查找，发现用一个属性有可搞定：
+在Python代码 
+conn = MySQLdb.Connect(host='localhost', user='root', passwd='root', db='python') 中加一个属性：
+ 改为：
+conn = MySQLdb.Connect(host='localhost', user='root', passwd='root', db='python',charset='utf8') 
+charset是要跟你数据库的编码一样，如果是数据库是gb2312 ,则写charset='gb2312'。
+ 
+下面贴一下常用的函数：
+然后,这个连接对象也提供了对事务操作的支持,标准的方法
+commit() 提交
+rollback() 回滚
+cursor用来执行命令的方法:
+callproc(self, procname, args):用来执行存储过程,接收的参数为存储过程名和参数列表,返回值为受影响的行数
+execute(self, query, args):执行单条sql语句,接收的参数为sql语句本身和使用的参数列表,返回值为受影响的行数
+executemany(self, query, args):执行单挑sql语句,但是重复执行参数列表里的参数,返回值为受影响的行数
+nextset(self):移动到下一个结果集
+
+cursor用来接收返回值的方法:
+fetchall(self):接收全部的返回结果行.
+fetchmany(self, size=None):接收size条返回结果行.如果size的值大于返回的结果行的数量,则会返回cursor.arraysize条数据.
+fetchone(self):返回一条结果行.
+scroll(self, value, mode='relative'):移动指针到某一行.如果mode='relative',则表示从当前所在行移动value条,如果 mode='absolute',则表示从结果集的第一行移动value条.
+参考资料：
+MySQLdb‘s user guide
+package MySQLdb
+
+
+
+
+
+
+
+
+
+
+
+
+#!/usr/local/bin/python
+#-*- coding: UTF-8 -*-
+#mysql  import mysql.connector操作
+#写的可以能有问题这个类  大家在修改吧   还是基于MySQLdb  改吧
+#QQ29295842    python灰帽编程群292041723
+#  hmhacker.org 灰帽程序员论坛
+from __future__ import print_function
+import mysql.connector
+from mysql.connector import errorcode
+from datetime import date, datetime, timedelta
+import ConfigParser  #INI读取数据
+
+class mysql_handle():
+    def __init__(self):
+        self.mysql_host="localhost"
+        self.mysql_user="root"
+        self.mysql_pwd="29295842"
+        self.mysql_dbname="ftp"
+        self.mysql_db_mod=1
+        self.connect_handler=''
+        self.connect_config=''
+
+    def construct_connect_para(self):  #连接主机信息
+        try:
+            config = ConfigParser.ConfigParser()
+            config.readfp(open("Server.ini"))
+            self.mysql_host = config.get("DATA","Server")
+            self.mysql_user = config.get("DATA","Username")
+            self.mysql_pwd = config.get("DATA","password")
+            self.mysql_dbname = config.get("DATA","db")
+        except:
+            print (u"读取INI错误")
+        self.connect_config={
+            'user':self.mysql_user,
+            'password':self.mysql_pwd,
+            'host':self.mysql_host,
+            'database':self.mysql_dbname,
+            'charset':'utf8'  #默认即为utf8
+            }
+
+    def mysql_open(self):  #连接主机
+    #self.connect_handler=mysql.connector.connect(user=self.mysql_user,password=self.mysql_pwd,host=self.mysql_host,\
+    #database=self.mysql_dbname)
+        self.construct_connect_para()  #连接主机信息
+        try:
+            self.connect_handler=mysql.connector.connect(**self.connect_config)  #连接数据库
+            print(u'mysql 连接成功')
+            self.mysql_cursor()   #获取指针
+            return True
+        except mysql.connector.Error as err:
+            print(u"连接数据库失败: {}".format(err))
+            return file
+
+    def mysql_close(self):#关闭连接
+        self.connect_handler.close()  #关闭连接
+
+    def mysql_cursor(self):  #获取操作句柄
+        #self.mysql_connect()
+        #self.cnx=self.connect_handler
+        self.cursor=self.connect_handler.cursor() #获取操作句柄
+
+    def mysql_S(self):  #保存数据
+        try:
+            self.connect_handler.commit()   #提交   这句害死我了
+#        except:
+#            print (u"保存数据异常")
+        except self.connect_handler.connector.Error as err:
+            print(u"保存数据异常: {}".format(err))
+            #return 0
+
+    def mysql_select(self,data):  #查询数据
+        try:
+            #print (data)
+            #self.mysql_cursor()   #获取指针
+            #print ("222222222222")
+            self.cursor.execute(data)
+            for url in self.cursor:
+                #print(url[0])#保存100个URL地址
+                #print '%s-%s-%s'%(row[0],row[1],row[2])
+                return url[0]
+        except:
+            return "null123456"
+
+    def mysql_insert(self,data):  #添加数据
+        try:
+            #self.mysql_cursor()   #获取指针
+            return self.cursor.execute(data)
+        except:
+            #print (u"添加数据异常",data)
+            return 0
+
+    def mysql_update(self,data):  #修改数据
+        try:
+            #self.mysql_cursor()   #获取指针
+            return self.cursor.execute(data)
+        except:
+            #print (u"修改数据异常",data)
+            return 0
+
+    def mysql_delete(self,data):  #删除数据
+        try:
+            #self.mysql_cursor()   #获取指针
+            return self.cursor.execute(data)
+        except:
+            #print (u"删除数据异常",data)
+            return 0
+
+if __name__=="__main__":
+    new=mysql_handle()
+    if(new.mysql_open()):  #返回主机是否连接成功
+        data="insert into openurl(url,time) VALUES('www.bnia.cn','2013.02.02-01.57.57')"
+        data1="insert into openurl(url,time) VALUES('www.xxxxxxxbnia.cn','2013.02.02-01.57.57')"
+        #print insert
+        new.mysql_insert(data1)
+        if new.mysql_insert(data):
+            print ("1111111111222222222")
+        else:
+            print("失败")
+        new.mysql_S()
+#        data="select * from openftp where linkftp is NULL limit 1"
+#        new.mysql_cursor()   #获取指针
+#        new.cursor.execute(data)
+#        for url in new.cursor:
+#            print(url[0])#保存100个URL地址

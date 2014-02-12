@@ -1,0 +1,57 @@
+boost::asio::streambuf的定义如下：
+
+namespace boost {
+namespace asio {
+
+/// Typedef for the typical usage of basic_streambuf.
+typedef basic_streambuf<> streambuf;
+
+} // namespace asio
+} // namespace boost 
+
+basic_streambuf继承于std::streambuf，如下： 
+
+class basic_streambuf
+  : public std::streambuf,
+    private noncopyable 
+
+－－－－－－－－－－－－－－－－－－－－－－－－－－－－ 
+
+ std::streambuf的定义：
+
+typedef basic_streambuf<char>     streambuf; 
+
+ 内部是用vector<char>类型保存为字符数组的
+
+private:
+  std::size_t max_size_;
+  std::vector<char_type, Allocator> buffer_; 
+
+ 
+
+假设response_为 boost::asio::streambuf类型，可用
+
+char c1 = response_.sgetc();读取第一个字符
+char c2 = response_.snextc();读取第二个字符
+char c3 = response_.snextc();读取第三个字符
+char c4 = response_.snextc();。。。
+char c5 = response_.snextc();。。。
+char c6 = response_.snextc();读取第六个字符
+
+ 
+
+如何将它转为字符串： 
+
+int size = response_.size();获取还有多少个字符
+
+char buffer[size + 1];
+response_.sgetn(buffer, size);
+buffer[size] = '\0';
+std::string stemp(buffer);
+
+
+也可以用另一种方式得到它内部的字符串：
+
+std::istream response_stream(&response_);
+
+Poco::StreamCopier::copyToString(response_stream, result); 

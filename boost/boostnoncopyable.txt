@@ -1,0 +1,116 @@
+boost::noncopyable
+通常编译器都是程序员的好朋友，但并不总是。它的好处之一在于它会自动为我们提供复制构造函数和赋值操作符，如果 我们决定不自己动手去做的话。这也可能会导致一些不愉快的惊讶，如果这个类本身就不想被复制(或被赋值)。如果真是这样，我们就需要明确地告诉这个类的使 用者复制构造以及赋值是被禁止的。我不是说在代码中进行注释说明，而是说要禁止对复制构造函数以及赋值操作符的访问。幸运的是，当类带有不能复制或不能赋 值的基类或成员函数时，编译器生成的复制构造函数及赋值操作符就不能使用。boost::noncopyable 的工作原理就是禁止访问它的复制构造函数和赋值操作符，然后使用它作为基类。
+用法
+要使用 boost::noncopyable, 你要从它私有地派生出不可复制类。虽然公有继承也可以，但这是一个坏习惯。公有继承对于阅读类声明的人而言，意味着IS-A (表示派生类IS-A 基类)关系，但表明一个类IS-A noncopyable 看起来有点不太对。要从noncopyable派生，就要包含 "boost/utility.hpp" 。
+#include "boost/utility.hpp"
+
+class please_dont_make_copies : boost::noncopyable {};
+
+int main() {
+please_dont_make_copies d1;
+please_dont_make_copies d2(d1);
+please_dont_make_copies d3;
+d3=d1;
+}
+这个例子不能通过编译。由于noncopyable的复制构造函数是私有的，因此对d2进行复制构造的尝试会失败。同样，由于noncopyable的赋值操作符也是私有的，因此将d1赋值给d3的尝试也会失败。编译器会给出类似下面的输出：
+noncopyable.hpp: In copy constructor
+' please_dont_make_copies::please_dont_make_copies (const please_dont_make_copies&)':
+boost/noncopyable.hpp:27: error: '
+boost::noncopyable::noncopyable(const boost::noncopyable&)' is
+private
+noncopyable.cpp:8: error: within this context
+boost/noncopyable.hpp: In member function 'please_dont_make_copies&
+please_dont_make_copies::operator=(const please_dont_make_copies&)':
+boost/noncopyable.hpp:28: error: 'const boost::noncopyable&
+boost::noncopyable::operator=(const boost::noncopyable&)' is private
+noncopyable.cpp:10: error: within this context
+下一节我们将测试这是如何工作的。很清楚从noncopyable派生将禁止复制和赋值。这也可以通过把复制构造函数和赋值操作符定义为私有的来实现。 我们来看一下怎么样做。
+使类不能复制
+再看一下类 please_dont_make_copies, 为了某些原因，它不能被复制。
+class please_dont_make_copies {
+public:
+void do_stuff() {
+std::cout <<
+"Dear client, would you please refrain from copying me?";
+}
+};
+由于编译器生成了复制构造函数和赋值操作符，所以现在不能禁止类的复制和赋值。
+please_dont_make_copies p1;
+please_dont_make_copies p2(p1);
+please_dont_make_copies p3;
+p3=p2;
+解决的方法是把复制构造函数和赋值操作符声明为私有的或是保护的，并增加一个缺省构造函数(因为编译器不再自动生成它了)。
+class please_dont_make_copies {
+public:
+please_dont_make_copies() {}
+
+void do_stuff() {
+std::cout << 
+"Dear client, would you please refrain from copying me?";
+}
+private:
+please_dont_make_copies(const please_dont_make_copies&);
+please_dont_make_copies& operator=
+(const please_dont_make_copies&);
+};
+这可以很好地工作，但它不能马上清晰地告诉 please_dont_make_copies的使用者它是不能复制的。下面看一下换成 noncopyable 后，如何使得类更清楚地表明不能复制，并且也可以打更少的字。
+用 noncopyable
+类 boost::noncopyable 被规定为作为私有基类来使用，它可以有效地关闭复制构造和赋值操作。用前面的例子来看看使用noncopyable后代码是什么样子的：
+#include "boost/utility.hpp"
+
+class please_dont_make_copies : boost::noncopyable {
+public:
+void do_stuff() {
+std::cout << "Dear client, you just cannot copy me!";
+}
+};
+不再需要声明复制构造函数或赋值操作符。由于我们是从noncopyable派生而来的，编译器不会再生成它们了，这样就禁止了复制和赋值。简洁可以带来清晰，尤其是象这样的基本且清楚的概念。对于阅读这段代码的使用者来说，马上就清楚地知道这个类是不能复制和赋值的，因为 boost::noncopyable 在类定义的一开始就出现了。最后要提醒的一点是：你还记得类的缺省访问控制是私有的吗？这意味着缺省上继承也是私有的。你也可以象这样写，来更加明确这个事实：
+class please_dont_make_copies : private boost::noncopyable {
+这完全取决于观众；有些程序员认为这种多余的信息是令人讨厌并且会分散注意力，而另一些程序员则认同这种清晰性。由你来决定哪一种方法适合你的类和你的程序员。无论哪一种方法，使用 noncopyable 都要比"忘记"复制构造函数和赋值操作符的方法更加明确，也比私有地声明它们更为清晰。
+记住 the Big Three
+正如我们看到的那样，noncopyable 为禁止类的复制和赋值提供了一个方便的办法。但何时我们需要这样做呢？什么情况下我们需要自定义复制构造函数或赋值操作符？这个问题有一个通用的答案，一 个几乎总是正确的答案：无论何时你需要定义析构函数、复制构造函数、或赋值操作符三个中的任意一个，你也需要定义另外两个。它们三者间的互动性非常重要，其中一个存在，其它的通常也都必须要有。我们假设你的一个类有一个成员是指针。你定义了一个析构函数用于正确地释放空间，但你没有定义复制构造函数和赋值操作符。这意味着你的代码中至少存在两个潜在的危险，它们很容易被触发。
+[5] 这个定律的名字叫the Big Three，来自于C++ FAQs (详情请见参考书目[2])。
+class full_of_errors {
+int* value_;
+public:
+full_of_errors() {
+value_=new int(13);
+}
+
+~full_of_errors() {
+delete value_;
+}
+};
+使用这个类时，如果你忽视了编译器为这个类生成的复制构造函数和赋值操作符，那么至少有三种情况会产生错误。
+full_of_errors f1;
+full_of_errors f2(f1);
+full_of_errors f3=f2;
+full_of_errors f4;
+f4=f3;
+注意，第二行和第三行是调用复制构造函数的两个等价的方法。它们都会调用生成的复制构造函数，虽然语法有所不同。最后一个错误在最后一行，赋值操作符使得同一个指针被至少两个full_of_errors实例所删除。正确的方法是，我们需要自己的复制构造函数和赋值操作符，因为我们定义了我们自己的析构函数。以下是正确的方法：
+class not_full_of_errors {
+int* value_;
+public:
+not_full_of_errors() {
+value_=new int(13);
+}
+
+not_full_of_errors(const not_full_of_errors& other) :
+value_(new int(*other.value_)) {}
+
+not_full_of_errors& operator=
+(const not_full_of_errors& other) {
+*value_=*other.value_;
+return *this;
+}
+
+~not_full_of_errors() {
+delete value_;
+}
+};
+所以，无论何时，一个类的the big three：复制构造函数、(虚拟)析构函数、和赋值操作符，中的任何一个被手工定义，在决定不需要定义其余两个之前必须认真仔细地考虑清楚。还有，如果你不想要复制，记得使用 boost::noncopyable ！
+总结
+有很多类型需要禁止复制和赋值。但是，我们经常忽略了把这些类型的复制构造函数和赋值操作符声明为私有的，而把责 任转嫁给了类的使用者。即使你使用了私有的复制构造函数和赋值操作符来确保它们不被复制或赋值，但是对于使用者而言这还不够清楚。当然，编译器会友好地提 醒试图这们做的人，但错误来自何处也不是清晰的。最好我们可以清晰地做到这一点，而从 noncopyable 派生就是一个清晰的声明。当你看一眼类型的声明就可以马上知道了。编译的时候，错误信息总会包含名字 noncopyable. 而且它也节省了一些打字，这对于某些人而言是关键的因素。
+以下情形下使用 noncopyable ：
+类型的复制和赋值都不被允许
+复制和赋值的禁止应该尽可能明显

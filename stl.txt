@@ -1,0 +1,559 @@
+STL的map表里有一个erase方法用来从一个map中删除掉指令的节点
+eg:
+map<string,string> mapTest;
+typedef map<string,string>::iterator ITER;
+ITER iter=mapTest.find(key);
+mapTest.erase(iter);
+像上面这样只是删除单个节点,map的形为不会出现任务问题,
+但是当在一个循环里用的时候,往往会被误用,那是因为使用者没有正确理解iterator的概念.
+像下面这样的一个例子就是错误的写法,
+eg.
+for(ITER iter=mapTest.begin();iter!=mapTest.end();++iter)
+{
+cout<<iter->first<<":"<<iter->second<<endl;
+mapTest.erase(iter);
+}
+这是一种错误的写法,会导致程序行为不可知.究其原因是map 是关联容器,对于关联容器来说，如果某一个元素已经被删除，那么其对应的迭代器就失效了，不应该再被使用；否则会导致程序无定义的行为。
+可以用以下方法解决这问题:
+正确的写法
+1.使用删除之前的迭代器定位下一个元素。STL建议的使用方式
+for(ITER iter=mapTest.begin();iter!=mapTest.end();)
+{
+cout<<iter->first<<":"<<iter->second<<endl;
+mapTest.erase(iter++);
+}
+2. erase() 成员函数返回下一个元素的迭代器
+for(ITER iter=mapTest.begin();iter!=mapTest.end();)
+{
+cout<<iter->first<<":"<<iter->second<<endl;
+iter=mapTest.erase(iter);
+}
+
+
+
+
+
+
+
+
+
+
+==============================================================
+Map(mulitmap)
+|
+|->名称----->map
+|->个性
+|      |------> ①map与set的最大区别在于map是一种特殊的set，它的所有元素都是pair<key,value>
+|      |------> ②map最大的特性在于map提供了下标subscript操作的能力，你可以向数组一样操作  |      |              map[key]来引用相应的值。这个除了方便以外同样也是问题的根源。
+|      |------> ③几乎所有针对map的操作都是基于key的。比如，排序就是通过比较key来进行的。
+|      |------> ④对于set成立的操作在map中基本上都成立
+|
+|->陷阱
+|      |------> ①如果你采用了这样的语句erase(pos)——其中的pos是个iterator，那么最好不要在 |    |        对该pos最任何操作，应为erase(pos)已经将这个pos删除了，此后任何关于pos的操作|    |        都视为定义的。这种情况要是发生在for循环中，for(pos=.begin(),pos!=.end         |      |           (),pos++)就能解决问题了。
+|      |------> ②假设代码中有这样的语句，cout<<map[key],按理这是没有问题的，但是如果你的 |      |            key在map中原本是不存在的，那么这句代码会“自作聪明”的帮你在map中将上一个  |    |         该key的value为default的元素，这恐怕不是件好事。
+|      |------> ③map[key]=value的操作要比insert(value)的方式慢。
+|
+|->说明------>multimap的操作与map大致一样，不同在于multimap允许有相同的key在容器中存在。
+|
+|->Type----->class
+|->Include---><map>
+|->Define---->map<key,value,optional compare ,optional>
+|->Sub
+|->Fun
+       |------>map和set基本具有相同的操作。
+       |------> 不同的是map的insert(elem)不再返回一个pair而是一个pos的iterator。 
+
+
+
+
+
+
+
+
+
+
+==================================
+
+>multimap的操作与map大致一样，不同在于multimap允许有相同的key在容器中存在。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+STL 对这个序列可以进行查找，插入删除序列中的任意一个元素，而完成这些操作的时间同这个序列中元素个数的对数成比例关系，并且当游标指向一个已删除的元素时，删除操作无效。而一个经过更正的和更加实际的定义应该是：一个集合(set)是一个容器，它其中所包含的元素的值是唯一的。这在收集一个数据的具体值的时候是有用的。集合中的元素按一定的顺序排列，并被作为集合中的实例。一个集合通过一个链表来组织，在插入操作和删除操作上比向量(vector)快，但查找或添加末尾的元素时会有些慢。具体实现采用了红黑树的平衡二叉树的数据结构。
+目录
+
+集和多集（set 和multiset 容器类）
+构造
+方法：
+集合操作：
+例子：
+编辑本段
+集和多集（set 和multiset 容器类）
+
+#include <set>
+一个集合（set）是一个容器，它其中所包含的元素的值是唯一的。
+集和多集的区别是：set支持唯一键值，set中的值都是特定的，而且只出现一次；而multiset中可以出现副本键，同一值可以出现多次。
+编辑本段
+构造
+
+explicit set(const Compare&=compare());
+如：set<int,less<int> > set1;
+less<int>是一个标准类，用于形成升序排列函数对象。降序排列是用greater<int>。
+Template<class InputIterator> set(InputIterator, InputIterator,\ const Compare&=compare());
+如：set<int ,less<int> >set2(vector1.begin(),vector1.end());
+通过指定某一预先定义的区间来初始化set对象的构造函数。
+set（const set<Key,Compare&>）;
+如：set<int ,less<int> >set3(set2);
+复制构造函数。
+编辑本段
+方法：
+
+begin() 返回指向第一个元素的迭代器
+clear() 清除所有元素
+count() 返回某个值元素的个数
+empty() 如果集合为空，返回true(真）
+end() 返回指向最后一个元素之后的迭代器，不是最后一个元素
+equal_range() 返回集合中与给定值相等的上下限的两个迭代器
+erase() 删除集合中的元素
+find() 返回一个指向被查找到元素的迭代器
+get_allocator() 返回集合的分配器
+insert() 在集合中插入元素
+lower_bound() 返回指向大于（或等于）某值的第一个元素的迭代器
+key_comp() 返回一个用于元素间值比较的函数
+max_size() 返回集合能容纳的元素的最大限值
+rbegin() 返回指向集合中最后一个元素的反向迭代器
+rend() 返回指向集合中第一个元素的反向迭代器
+size() 集合中元素的数目
+swap() 交换两个集合变量
+upper_bound() 返回大于某个值元素的迭代器
+value_comp() 返回一个用于比较元素间的值的函数
+编辑本段
+集合操作：
+
+std::set_intersection() :这个函数是求两个集合的交集。
+std::set_union() :求两个集合的并集
+std::set_difference（）：差集
+std::set_symmetric_difference（）：得到的结果是第一个迭代器相对于第二个的差集并 上第二个相当于第一个的差集
+struct compare{
+bool operator ()(string s1,string s2){
+return s1>s2;
+}///自定义一个仿函数
+};
+std::set<string,compare> s
+string str[10];
+string *end = set_intersection(s.begin(),s.end(),s2.begin(),s2.end(),str,compare());//求交集，返回值指向str最后一个元素的尾端
+end = std::set_union(s.begin(),s.end(),s2.begin(),s2.end(),str,compare());//并集
+end = std::set_difference(s.begin(),s.end(),s2.begin(),s2.end(),str,compare());//s2相对于s1的差集
+end = std::set_difference(s2.begin(),s2.end(),s.begin(),s.end(),str,compare());//s1相对于s2的差集
+end = std::set_symmetric_difference(s.begin(),s.end(),s2.begin(),s2.end(),str,compare());//上面两个差集的并集
+编辑本段
+例子：
+
+1///////////////////////////////////////////////////////////////////
+#include <iostream>
+#include <set>
+using namespace std;
+int main(void)
+{
+set<int> set1;
+for(int i=0; i<10; ++i)
+set1.insert(i);
+for(set<int>::iterator p=set1.begin();p!=set1.end();++p)
+cout<<*p<<"";
+if(set1.insert(3).second)//把3插入到set1中
+//插入成功则set1.insert(3).second返回1，否则返回0
+//此例中，集中已经有3这个元素了，所以插入将失败
+cout<<"set insert success";
+else
+cout<<"set insert failed";
+int a[] = {4, 1, 1, 1, 1, 1, 0, 5, 1, 0};
+multiset<int> A;
+A.insert(set1.begin(),set1.end());
+A.insert(a,a+10);
+cout<<endl;
+for(multiset<int>::iterator p=A.begin();p!=A.end();++p)
+cout<<*p<<" ";
+cin.get();
+return 0;
+}
+2////////////////////////////////////////
+#include <iostream>
+#include <set>
+#include <string>
+#include <algorithm>
+using namespace std;
+struct compare
+{
+bool operator ()(string s1,string s2)
+{
+return s1>s2;
+}///自定义一个仿函数
+};
+int main()
+{
+typedef std::set<string,compare> _SET;
+_SET s;
+s.insert(string("sfdsfd"));
+s.insert(string("apple"));
+s.insert(string("english"));
+s.insert(string("dstd"));
+cout<<"s1:"<<endl;
+std::set<string,compare>::iterator it = s.begin();
+while(it!=s.end())
+cout<<*it++<<" ";
+cout<<endl<<"s2:"<<endl;
+_SET s2;
+s2.insert(string("abc"));
+s2.insert(string("apple"));
+s2.insert(string("english"));
+it = s2.begin();
+while(it!=s2.end())
+cout<<*it++<<" ";
+cout<<endl<<endl;
+string str[10];
+string *end = set_intersection(s.begin(),s.end(),s2.begin(),s2.end(),str,compare());//求交集，返回值指向str最后一个元素的尾端
+cout<<"result of set_intersection s1,s2:"<<endl;
+string *first = str;
+while(first<end)
+cout <<*first++<<" ";
+cout<<endl<<endl<<"result of set_union of s1,s2"<<endl;
+end = std::set_union(s.begin(),s.end(),s2.begin(),s2.end(),str,compare());//并集 first = str;
+while(first<end)
+cout <<*first++<<" ";
+cout<<endl<<endl<<"result of set_difference of s2 relative to s1"<<endl;
+first = str;
+end = std::set_difference(s.begin(),s.end(),s2.begin(),s2.end(),str,compare());//s2相对于s1的差集 while(first<end)
+cout <<*first++<<" ";
+cout<<endl<<endl<<"result of set_difference of s1 relative to s2"<<endl;
+first = str;
+end = std::set_difference(s2.begin(),s2.end(),s.begin(),s.end(),str,compare());//s1相对于s2的差集
+while(first<end)
+cout <<*first++<<" ";
+cout<<endl<<endl;
+first = str;
+end = std::set_symmetric_difference(s.begin(),s.end(),s2.begin(),s2.end(),str,compare());//上面两个差集的并集 while(first<end)
+cout <<*first++<<" ";
+cout<<endl;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ c++ std::pair 与 std::make
+2011-08-11 16:00:59
+标签：c++ pair make 休闲 职场
+源自: http://blog.sina.com.cn/s/blog_72a0bac20100qbg6.html
+自己写了个小的Test:
+ 
+#include <iostream>  
+#include<vector>  
+using namespace std;  
+ 
+typedef vector<pair<int, int> > Type_vector;  
+ 
+int main(int argc, char *argv[])  
+{  
+    vector<pair<int, int> > xiaoqiang;  
+    xiaoqiang.push_back(make_pair(3,4));  
+      
+    //vector<pair<int, int> >::iterator iter;  
+          
+    Type_vector::iterator iter;   
+          
+    for(iter = xiaoqiang.begin(); iter!=xiaoqiang.end(); iter++)  
+    {  
+        cout<<iter->first<<" : "<<iter->second<<endl;     
+    }     
+    return 0;  
+} 
+ 
+std::pair主要的作用是将两个数据组合成一个数据，两个数据可以是同一类型或者不同类型。例如std::pair<int,float> 或者 std：：pair<double,double>等。pair实质上是一个结构体，其主要的两个成员变量是first和second，这两个变量可以直接使用。初始化一个pair可以使用构造函数，也可以使用std::make_pair函数，make_pair函数的定义如下：  
+ 
+template pair make_pair(t1 a, t2 b) { return pair(a, b); }  
+   
+ 
+一般make_pair都使用在需要pair做参数的位置，可以直接调用make_pair生成pair对象。另一个使用的方面就是pair可以接受隐式的类型转换，这样可以获得更高的灵活度。但是这样会出现如下问题：例如有如下两个定义：  
+ 
+   
+ 
+std::pair<int, float>(1, 1.1);  
+ 
+std::make_pair(1, 1.1);  
+ 
+其中第一个的second变量是float类型，而make_pair函数会将second变量都转换成double类型。这个问题在编程是需要引起注意。下面是一段pair与make_pair的例子程序：  
+ 
+ 
+1 #include <iostream>  
+2 #include <utility>  
+3 #include <string>  
+4 using namespace std;  
+5   
+6 int main () {  
+7 pair <string,double> product1 ("tomatoes",3.25);  
+8 pair <string,double> product2;  
+9 pair <string,double> product3;  
+10   
+11 product2.first = "lightbulbs"; // type of first is string  
+12 product2.second = 0.99; // type of second is double  
+13   
+14 product3 = make_pair ("shoes",20.0);  
+15   
+16 cout << "the price of " << product1.first << " is $" << product1.second << "\n";  
+17 cout << "the price of " << product2.first << " is $" << product2.second << "\n";  
+18 cout << "the price of " << product3.first << " is $" << product3.second << "\n";  
+19 return 0;  
+20 }  
+其运行结果如下：  
+ 
+ 
+1 the price of tomatoes is $3.25  
+2 the price of lightbulbs is $0.99  
+3 the price of shoes is $20  
+为了更好的了解pair与make_pair的机制，下面是其定义：  
+ 
+1 // template struct pair  
+2 template<class _ty1,class _ty2> struct pair  
+3 { // store a pair of values  
+4 typedef pair<_ty1, _ty2> _myt;  
+5 typedef _ty1 first_type;  
+6 typedef _ty2 second_type;  
+7   
+8 pair(): first(_ty1()), second(_ty2())  
+9 { // construct from defaults  
+10 }  
+11   
+12 pair(const _ty1& _val1, const _ty2& _val2): first(_val1), second(_val2)  
+13 { // construct from specified values  
+14 }  
+15   
+16 template<class _other1,  
+17 class _other2>  
+18 pair(const pair<_other1, _other2>& _right)  
+19 : first(_right.first), second(_right.second)  
+20 { // construct from compatible pair  
+21 }  
+22   
+23 void swap(_myt& _right)  
+24 { // exchange contents with _right  
+25 std::swap(first, _right.first);  
+26 std::swap(second, _right.second);  
+27 }  
+28   
+29 _ty1 first; // the first stored value  
+30 _ty2 second; // the second stored value  
+31 };  
+32   
+33   
+34 template<class _ty1,class _ty2> inline 
+35 pair<_ty1, _ty2> make_pair(_ty1 _val1, _ty2 _val2)  
+36 { // return pair composed from arguments  
+37 return (pair<_ty1, _ty2>(_val1, _val2));  
+38 } 
+
+
+
+
+
+
+
+
+
+
+
+
+map按value值查找——find_if的使用
+    最近是经常使用stl中的map，于是就想记一些关于map的东西。这一篇中会讲到map按照value值查找的方法，就是find_if函数。
+大家都知道在map中，排序是按照key值排的，map自带的find方法也是按着key值查找的，这在某些情况下可能会遇到一些麻烦。
+譬如，map<int, char*> m_str中，传入一个char*需要查找在m_str中是否存在这个字符串，当然你大可以使用iterator遍历一些map，
+如果你坚持这么做，那就可以直接关闭网页了。
+    1.先来看看find_if的原型：
+
+template <class InputIterator, class Predicate> 
+InputIterator find_if(InputIterator first, InputIterator last,Predicate pred) 
+{ 
+       while (first != last && !pred(*first)) ++first; 
+       return first; 
+} 
+
+ find_if是一个模板函数，接受两个数据类型：InputItearator迭代器，Predicate用于比较数值的函数或者函数对象（仿函数）。find_if对迭代器要求很低，只需要它支持自增操作即可。当前遍历到的记录符合条件与否，判断标准就是使得pred()为真。至此可能还有些不是很明了，下面举几个例子实际操练下的它的用法。注意观察第三个参数pred。
+ 2.find_if在std::map查找时的应用
+ 假如我们有个map对象是这么声明的：
+
+std::map<int, std::string> mymap;
+mymap.insert(std::make_pair(20, "USA"));
+mymap.insert(std::make_pair(10, "CHINA")); 
+mymap.insert(std::make_pair(30, "English"));
+mymap.insert(std::make_pair(40, "Hongkong"));
+
+插入值后我们想得到值为”english”的这条记录，要怎样写程序呢？下面是个范例参考下：
+ #include <map>
+
+#include <string>
+#include <algorithm>
+class map_value_finder
+{
+public:
+       map_value_finder(const std::string &cmp_string):m_s_cmp_string(cmp_string){}
+       bool operator ()(const std::map<int, std::string>::value_type &pair)
+       {
+            return pair.second == m_s_cmp_string;
+       }
+private:
+        const std::string &m_s_cmp_string;                    
+};
+ 
+int main()
+{
+    std::map<int, std::string> my_map;
+    my_map.insert(std::make_pair(10, "china"));
+    my_map.insert(std::make_pair(20, "usa"));
+    my_map.insert(std::make_pair(30, "english"));
+    my_map.insert(std::make_pair(40, "hongkong"));    
+    
+    std::map<int, std::string>::iterator it = my_map.end();
+    it = std::find_if(my_map.begin(), my_map.end(), map_value_finder("English"));
+    if (it == my_map.end())
+       printf("not found\n");       
+    else
+       printf("found key:%d value:%s\n", it->first, it->second.c_str());
+       
+    return 0;        
+}
+
+ class map_finder即用于比较的函数对象，它的核心就是重载的()运算符。因为每个容器迭代器的*运算符得到的结果都是该容器的value_type值，所以该运算符的形参就是map迭代器指向的value_type类型的引用。而map的value_type到底是什么类型，就得看下STL的源代码是如何定义的。
+
+template <class Key, class T, class Compare = less<Key>, class Alloc = alloc>
+class map
+{
+public:
+typedef Key key_type;
+typedef pair<const Key, T> value_type;
+......
+};
+
+从上面的定义可以看出，map的value_type是std::pair<const Key, t>类型，它的first值就是关键字，second值保存map的值域。
+3.find_if在vector中的应用与上面的类似，就不举例子了。 区别就是vecotor的value_type和map的value_type不一样，想大家应该是明白的。
+
+
+
+
+
+
+
+
+
+random_shuffle (STL Samples)
+在 Visual C++ 演示如何使用 random_shuffle 标准 (STL)模板库函数。
+template<class RandomAccessIterator> inline
+   void random_shuffle(
+      RandomAccessIterator First,
+      RandomAccessIterator Last
+   )
+备注
+说明
+类/参数名在原型不匹配版本在头文件。 修改某些提高可读性。
+random_shuffle 算法拖曳顺序 [First的元素。Last) 在任意顺序。 nonpredicate 版本使用的是内部随机数生成器生成元素的索引交换。 random_shuffle 使用 operator= 的 nonpredicate 版本执行交换。
+示例
+ // random_shuffle.cpp
+// compile with: /EHsc
+// Illustrates how to use the random_shuffle
+// function.
+//
+// Functions:
+//     random_shuffle : Shuffle the elements in a random order.
+//////////////////////////////////////////////////////////////////////
+
+// disable warning C4786: symbol greater than 255 character,
+// okay to ignore
+#pragma warning(disable: 4786)
+
+#include <iostream>
+#include <algorithm>
+#include <functional>
+#include <vector>
+
+using namespace std ;
+
+int main() {
+   const int VECTOR_SIZE = 8 ;
+
+   // Define a template class vector of int
+   typedef vector<int> IntVector ;
+
+   //Define an iterator for template class vector of strings
+   typedef IntVector::iterator IntVectorIt ;
+
+   IntVector Numbers(VECTOR_SIZE) ;
+
+   IntVectorIt start, end, it ;
+
+   // Initialize vector Numbers
+   Numbers[0] = 4 ;
+   Numbers[1] = 10;
+   Numbers[2] = 70 ;
+   Numbers[3] = 30 ;
+   Numbers[4] = 10;
+   Numbers[5] = 69 ;
+   Numbers[6] = 96 ;
+   Numbers[7] = 100;
+
+   // location of first element of Numbers
+   start = Numbers.begin();
+
+   // one past the location last element of Numbers
+   end = Numbers.end();
+
+   cout << "Before calling random_shuffle" << endl ;
+
+   // print content of Numbers
+   cout << "Numbers {" ;
+   for (it = start; it != end; it++)
+      cout << " " << *it;
+   cout << " }" << endl ;
+
+   // shuffle the elements in a random order
+   random_shuffle(start, end) ;
+
+   cout << "After calling random_shuffle" << endl ;
+
+   cout << "Numbers {" ;
+   for (it = start; it != end; it++)
+      cout << " " << *it;
+   cout << " }" << endl ;
+}
+示例输出
+ Before calling random_shuffle
+Numbers { 4 10 70 30 10 69 96 100 }
+After calling random_shuffle
+Numbers { 10 10 96 70 4 69 100 30 }
+要求
+标题:algorithm
+请参见
+概念

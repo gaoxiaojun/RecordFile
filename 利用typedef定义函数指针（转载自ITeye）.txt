@@ -1,0 +1,273 @@
+寂寞时的臆想
+利用typedef定义函数指针（转载自ITeye）
+
+进入正文：
+　代码简化, 促进跨平台开发的目的.
+　typedef 行为有点像 #define 宏，用其实际类型替代同义字。
+　不同点：typedef 在编译时被解释，因此让编译器来应付超越预处理器能力的文本替换。
+用法一：
+typedef int (*MYFUN)(int, int); 
+这种用法一般用在给函数定义别名的时候
+上面的例子定义MYFUN 是一个函数指针, 函数类型是带两个int 参数, 返回一个int 
+
+在分析这种形式的定义的时候可以用下面的方法: 
+先去掉typedef 和别名, 剩下的就是原变量的类型. 
+去掉typedef和MYFUN以后就剩: 
+int (*)(int, int)
+用法二：
+typedef给变量类型定义一个别名.
+typedef struct{ 
+int a; 
+int b; 
+}MY_TYPE; 
+
+这里把一个未命名结构直接取了一个叫MY_TYPE的别名, 这样如果你想定义结构的实例的时候就可以这样: 
+MY_TYPE tmp;
+ 
+第二种用法：typedef 原变量类型 别名
+简单的函数指针的用法
+//形式1：返回类型（*函数名）（参数表）
+char（*pFun)(int);
+//typedef char(*pFun)(int)   //跟上一行功能等同
+/*typedef的功能是定义新的类型。第一句就是定义了一种PTRFUN的类型，并定义这种类型为指向某种函数的指针，这种函数以一个int为参数并返回char类型。*/
+char glFun(int a){return;}
+void main()
+{
+pFun =glFun;
+(*pFun)(2);
+}
+第一行定义了一个指针变量pFun.它是一个指向某种函数的指针，这种函数参数是一个int类型，返回值是char类型。只有第一句我们还无法使用这个指针，因为我们还未对它进行赋值。
+第二行定义了一个函数glFun().该函数正好是一个以int为参数返回char的函数。我们要从指针的层次上理解函数-函数的函数名实际上就是一个指针，函数名指向该函数的代码在内存中的首地址。
+ 
+
+ 1 //#include<iostream.h>
+ 2 #include<stdio.h>
+ 3 
+ 4 typedef int (*FP_CALC)(int, int);
+ 5 //注意这里不是函数声明而是函数定义，它是一个地址，你可以直接输出add看看
+ 6 int add(int a, int b)
+ 7 {
+ 8      return a + b;
+ 9 }
+10 int sub(int a, int b)
+11 {
+12      return a - b;
+13 }
+14 int mul(int a, int b)
+15 {
+16      return a * b;
+17 }
+18 int div(int a, int b)
+19 {
+20      return b? a/b : -1;
+21 }
+22 //定义一个函数，参数为op，返回一个指针。该指针类型为 拥有两个int参数、
+23 //返回类型为int 的函数指针。它的作用是根据操作符返回相应函数的地址
+24 FP_CALC calc_func(char op)
+25 {
+26      switch (op)
+27      {
+28      case '+': return add;//返回函数的地址
+29      case '-': return sub;
+30      case '*': return mul;
+31      case '/': return div;
+32      default:
+33          return NULL;
+34      }
+35      return NULL;
+36 }
+37 //s_calc_func为函数，它的参数是 op，
+38 //返回值为一个拥有 两个int参数、返回类型为int 的函数指针
+39 int (*s_calc_func(char op)) (int, int)
+40 {
+41      return calc_func(op);
+42 } 
+43 //最终用户直接调用的函数，该函数接收两个int整数，和一个算术运算符，返回两数的运算结果
+44 int calc(int a, int b, char op)
+45 {
+46      FP_CALC fp = calc_func(op); //根据预算符得到各种运算的函数的地址
+47          int (*s_fp)(int, int) = s_calc_func(op);//用于测试
+48 // ASSERT(fp == s_fp);   // 可以断言这俩是相等的
+49      if (fp) return fp(a, b);//根据上一步得到的函数的地址调用相应函数，并返回结果
+50      else return -1;
+51 }
+52 
+53 void main()
+54 {   
+55     int a = 100, b = 20;
+56 
+57      printf("calc(%d, %d, %c) = %d\n", a, b, '+', calc(a, b, '+'));
+58      printf("calc(%d, %d, %c) = %d\n", a, b, '-', calc(a, b, '-'));
+59      printf("calc(%d, %d, %c) = %d\n", a, b, '*', calc(a, b, '*'));
+60      printf("calc(%d, %d, %c) = %d\n", a, b, '/', calc(a, b, '/'));
+61 }
+
+以上转载地址：http://fouri.iteye.com/blog/483974
+以下是另一篇，介绍的思路有些不同
+ 
+C语言语法简单，但内涵却博大精深；如果在学习时只是止步于表面，那么往往后期会遇到很多困 难。typedef是C语言中一个很好用的工具，大量存在于已有代码中，特别值得一提的是：C++标准库实现中更是对typedef有着大量的使用。但很 多初学者对其的理解仅局限于：typedef用来定义一个已有类型的"别名(alias)"。正是因为有了这样的理解，才有了后来初学者在typedef int myint和typedef myint int之间的犹豫不决。很多国内大学的C语言课之授课老师也都是如是说的，或者老师讲的不够透彻，导致学生们都是如是理解的。我这里想结合C语言标准文档 以及一些代码实例，也说说typedef。
+ 
+int    *p;
+ 
+这样的代码是C语言中最最基础的一个语句了，大家都知道这个语句声明了一个变量p，其类型是指向整型的指针(pointer to int)；如果在这个声明的前面加上一个typedef后，整个语义(semantics)又会是如何改变的呢？
+ 
+typedef  int    *p;
+ 
+我们先来看看C99标准中关于typedef是如何诠释的？C99标准中这样一小段精辟的描 述："In a declaration whose storage-class specifier is typedef, each declarator defines an identifier to be a typedef name that denotes the type specified for the identifier in the way described in xx"。
+ 
+参照这段描述，并拿typedef  int    *p作为例子来理解：在一个声明中，如果有存储类说明符typedef的修饰，标识符p将被定义为了一个typedef name，这个typedef name表示(denotes)一个类型，什么类型呢？就是int *p这个声明(declarator)中标识符(indentifier)p的类型(int*)。
+ 
+再比对一下两个声明：
+ 
+int    *p;
+ 
+typedef  int    *p;
+ 
+是不是有点"茅舍顿开"的感觉，int *p中, p是一个变量，其类型为pointer to int；在int *p前面增加一个typedef后，p变为一个typedef-name，这个typedef-name所表示的类型就是int *p声明式中p的类型(int*)。说句白话，typedef让p去除了普通变量的身份，摇身一变，变成了p的类型的一个typedef-name了。
+ 
+为了巩固上面的理解，我们再来看看"C语言参考手册(C: A Reference Manual)"中的说法：任何declarator(如typedef int   *p)中的indentifier(如p)定义为typedef-name， 其(指代p)表示的类型是declarator为正常变量声明(指代int  *p)的那个标识符(指代p)的类型(int*)。有些绕嘴，不过有例子支撑：
+ 
+[例1]
+ 
+typedef double MYDOUBLE;  
+ 
+分析:
+ 
+去掉typedef ，得到正常变量声明=> double MYDOUBLE;
+ 
+变量MYDOUBLE的类型为double;
+ 
+=> "typedef double MYDOUBLE"中MYDOUBLE是类型double的一个typedef-name。
+ 
+MYDOUBLE    d; <=> d是一个double类型的变量
+ 
+[例2]
+ 
+typedef double *Dp;  
+ 
+分析:
+ 
+去掉typedef  ，得到正常变量声明=> double *Dp;
+ 
+变量Dp的类型为double*，即pointer to double;
+ 
+=> "typedef double *Dp"中Dp是类型double*的一个typedef-name。
+ 
+Dp    dptr; <=> dptr是一个pointer to double的变量
+ 
+[例3]
+ 
+typedef int* Func(int);
+ 
+分析:
+ 
+去掉typedef  ，得到正常变量声明=> int* Func(int);
+ 
+变量Func的类型为一个函数标识符，该函数返回值类型为int*，参数类型为int;
+ 
+=> "typedef int* Func(int)"中Func是函数类型(函数返回值类型为int*，参数类型为int)的一个typedef-name。
+ 
+Func    *fptr; <=> fptr是一个pointer to function with one int parameter, returning a pointer to int
+ 
+Func     f;   这样的声明意义就不大了。
+ 
+[例4]
+ 
+typedef int (*PFunc)(int);
+ 
+分析:
+ 
+去掉typedef  ，得到正常变量声明=> int (*PFunc)(int);
+ 
+变量PFunc的类型为一个函数指针，指向的返回值类型为int，参数类型为int的函数原型;
+ 
+=> "typedef int (*PFunc)(int)"中PFunc是函数指针类型(该指针类型指向返回值类型为int，参数类型为int的函数)的一个typedef-name。
+ 
+PFunc     fptr; <=> fptr是一个pointer to function with one int parameter, returning int
+ 
+
+ 1 #include "iostream"
+ 2 
+ 3 using namespace std;
+ 4 
+ 5 int add(int a,int b){
+ 6 return (a+b);
+ 7 }
+ 8 
+ 9 typedef int (* func)(int ,int ) ;
+10 
+11 void main(){
+12 func f = add;
+13 int n = f(1,2);
+14 cout << n << endl;
+15 }
+
+ 
+[例5]
+ 
+typedef    int   A[5];
+ 
+分析:
+ 
+去掉typedef ，得到正常变量声明 => int   A[5];
+ 
+变量A的类型为一个含有5个元素的整型数组；
+ 
+=> "typedef    int   A[5]"中A是含有5个元素的数组类型的一个typedef-name。
+ 
+A   a = {3, 4, 5, 7, 8};
+ 
+A   b = { 3, 4, 5, 7, 8, 9}; /* 会给出Warning: excess elements in array initializer */
+ 
+[例6]
+ 
+typedef    int   (*A)[5]; (注意与typedef    int*    A[5]; 区分)
+ 
+分析:
+ 
+去掉typedef ，得到正常变量声明 => int   (*A)[5];
+ 
+变量A的类型为pointer to an array with 5 int elements；
+ 
+=> "typedef    int   (*A)[5]"中A是"pointer to an array with 5 int elements"的一个typedef-name。
+ 
+int   c[5] = {3, 4, 5, 7, 8};  
+ 
+A    a = &c;
+ 
+printf("%d\n", (*a)[0]); /* output: 3 */
+ 
+如果这样赋值：
+ 
+int   c[6] = {3, 4, 5, 7, 8, 9};  
+ 
+A    a = &c; /* 会有Warning: initialization from incompatible pointer type */
+ 
+[例7]
+ 
+typedef struct _Foo_t Foo_t;
+ 
+分析:
+ 
+去掉typedef ，得到正常变量声明 => struct _Foo_t Foo_t;
+ 
+变量Foo_t的类型为struct _Foo_t;
+ 
+=> "typedef struct _Foo_t Foo_t"中Foo_t是"struct _Foo_t"的一个typedef-name。
+ 
+[例8]
+ 
+typedef   struct { ... // }   Foo_t;
+ 
+分析:
+ 
+去掉typedef ，得到正常变量声明 => struct { ... // }   Foo_t;
+ 
+变量Foo_t的类型为struct { ... // } ;
+ 
+=> "typedef   struct { ... // }   Foo_t "中Foo_t是"struct { ... // }"的一个typedef-name。这里struct {...//}是一个无"标志名称(tag name)"的结构体声明。
+ 
+参考资料：
+ 
+1、"ISOIEC-98991999(E)--Proamgrming Languages--C"之Page 123;
+　　2、C语言参考手册(中文版) 之 Pag

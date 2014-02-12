@@ -1,0 +1,330 @@
+公司其他同事大多做C#的，公司内部暂时也没用提供自己的C++日志库，由于项目较紧急，所以就准备选一个开源日志库使用，由于以前做过java，用的Log4j比较强大，但是查了下，其使用起来有点复杂。所以就想到最伟大的公司google了，其Glog使用还是比较简单的，源码下下来直接用VS编译生成lib和dll库，源码文件中都有现成的vs工程。
+
+开源项目首页：https://code.google.com/p/google-glog/
+
+Glog项目路径： https://code.google.com/p/google-glog/downloads/list
+
+
+第一步，下载glog-0.3.3.tar.gz，解压，直接打开google-glog.sln工程文件，如果vs版本不对，让其自动转换
+
+第二步，编译，在Debug下生成libglog.dll、 libglog.lib、libglog_static.lib
+
+第三步，将头文件和lib库拷贝到自己的工程下，由于我暂时是window下使用，头文件使用 \glog-0.3.3\src\windows\glog
+
+第四步，引用到自己工程下，编译发现报错：
+
+1>d:\workspace\video\videomanage\devicemgr\lib\glog\glog\log_severity.h(55): fatal error C1189: #error :  ERROR macro is defined. Define GLOG_NO_ABBREVIATED_SEVERITIES before including logging.h. See the document for detail.
+1>  SessionMgr.cpp
+1>d:\workspace\video\videomanage\devicemgr\lib\glog\glog\log_severity.h(55): fatal error C1189: #error :  ERROR macro is defined. Define GLOG_NO_ABBREVIATED_SEVERITIES before including logging.h. See the document for detail.
+1>  SessionFactory.cpp
+1>d:\workspace\video\videomanage\devicemgr\lib\glog\glog\log_severity.h(55): fatal error C1189: #error :  ERROR macro is defined. Define GLOG_NO_ABBREVIATED_SEVERITIES before including logging.h. See the document for detail.
+1>  RealTimeStreamSession.cpp
+1>d:\workspace\video\videomanage\devicemgr\lib\glog\glog\log_severity.h(55): fatal error C1189: #error :  ERROR macro is defined. Define GLOG_NO_ABBREVIATED_SEVERITIES before including logging.h. See the document for detail.
+1>  main.cpp
+1>d:\workspace\video\videomanage\devicemgr\lib\glog\glog\log_severity.h(55): fatal error C1189: #error :  ERROR macro is defined. Define GLOG_NO_ABBREVIATED_SEVERITIES before including logging.h. See the document for detail.
+1>  GNumGenerator.cpp
+1>d:\workspace\video\videomanage\devicemgr\lib\glog\glog\log_severity.h(55): fatal error C1189: #error :  ERROR macro is defined. Define GLOG_NO_ABBREVIATED_SEVERITIES before including logging.h. See the document for detail.
+1>  DevicControlSession.cpp
+1>d:\workspace\video\videomanage\devicemgr\lib\glog\glog\log_severity.h(55): fatal error C1189: #error :  ERROR macro is defined. Define GLOG_NO_ABBREVIATED_SEVERITIES before including logging.h. See the document for detail.
+1>  CatalogSesssion.cpp
+1>d:\workspace\video\videomanage\devicemgr\lib\glog\glog\log_severity.h(55): fatal error C1189: #error :  ERROR macro is defined. Define GLOG_NO_ABBREVIATED_SEVERITIES before including logging.h. See the document for detail.
+进入log_severity.h头文件查看，是一个宏定义的地方出现了冲突：
+
+
+#ifndef GLOG_NO_ABBREVIATED_SEVERITIES
+# ifdef ERROR
+#  error ERROR macro is defined. Define GLOG_NO_ABBREVIATED_SEVERITIES before including logging.h. See the document for detail.
+# endif
+const int INFO = GLOG_INFO, WARNING = GLOG_WARNING,
+  ERROR = GLOG_ERROR, FATAL = GLOG_FATAL;
+#endif
+解决方法：
+
+在工程加上预编译宏GLOG_NO_ABBREVIATED_SEVERITIES
+
+C/C++  -->  预处理器  -->  预处理器定义  -->  加上GLOG_NO_ABBREVIATED_SEVERITIES宏  保存，编译通过~
+
+第五步，自己的项目中使用
+
+#include "glog/logging.h"
+int _tmain(int argc, _TCHAR* argv[])
+{ 
+ google::InitGoogleLogging((const char *)argv[0]);  //参数为自己的可执行文件名
+
+ google::SetLogDestination(google::GLOG_INFO,"./myInfo");
+
+ LOG(INFO) << "This is a <Warn> log message..." << ;
+
+
+        .....................
+
+}
+
+
+搞定，后面就是将这些日志在工程中使用起来了。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+下载后解压，利用Visual Studio打开google-glog.sln。生成解决方案
+安装：
+方法一：将libglog.dll和libglog.lib文件，拷贝文件到你的工程文件夹下，并拷贝src\windows\下的glog目录到你的工程文件下。
+方法二：你也可以将这两个文件拷贝到系统文件夹下，实现全局访问。
+1. 将libglog.dll拷贝到C:\Program Files\Microsoft Visual Studio 11.0\VC\bin
+2. 将libglog.lib拷贝到C:\Program Files\Microsoft Visual Studio 11.0\VC\lib
+3. 将src\windows\下的glog目录拷贝到C:\Program Files\Microsoft Visual Studio 11.0\VC\include
+测试使用：
+[cpp] view plaincopy
+#include "glog/logging.h"    
+#include <iostream>    
+#include <vector>    
+using namespace std;    
+#pragma comment(lib,"libglog.lib")    
+  
+int main(int argc, char* argv[])  
+{  
+    // Initialize Google's logging library.    
+    google::InitGoogleLogging(argv[0]);    
+    google::SetLogDestination(google::INFO,"E://");    
+    // 设置日志路径  INFO WARNING ERROR FATAL    
+    // ...    
+    char str[20] = "hello log!";    
+    LOG(INFO) << "Found " << google::COUNTER <<endl;    
+    LOG(INFO) << str ;//<< " cookies";    
+    LOG(WARNING) << "warning test";  // 会输出一个Warning日志    
+    LOG(ERROR) << "error test";//会输出一个Error日志    
+  
+    system("pause");  
+    return 0;  
+}  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+本文是根据自己的理解翻译组织了glog的manual，鉴于自身的理解能力和英语水平，可能存在谬误，欢迎大家指出！英文原文见http://google-glog.googlecode.com/svn/trunk/doc/glog.html
+1.   概述
+      Google glog是一个基于程序级记录日志信息的c++库，编程使用方式与c++的stream操作类似，例：
+       LOG(INFO) << "Found " << num_cookies << " cookies";
+“LOG”宏为日志输出关键字，“INFO”为严重性程度。
+主要支持功能：
+1， 参数设置，以命令行参数的方式设置标志参数来控制日志记录行为；
+2， 严重性分级，根据日志严重性分级记录日志；
+3， 可有条件地记录日志信息；
+4， 条件中止程序。丰富的条件判定宏，可预设程序终止条件；
+5， 异常信号处理。程序异常情况，可自定义异常处理过程；
+6， 支持debug功能。可只用于debug模式；
+7， 自定义日志信息；
+8， 线程安全日志记录方式；
+9， 系统级日志记录；
+10， google perror风格日志信息；
+11， 精简日志字符串信息。
+2.   功能使用
+1.1  参数设置
+       可通过命令行方式设置glog的标志参数，用来控制日志记录行为。
+命令格式如下：
+      标志名1 = 标志值 标志名2=标志值 …… 标志值n=标志值        ./程序名
+所有标志名需添加统一前缀—“GLOG_”，不同标志语句之间以空格相隔；
+例如：
+-- GLOG_vmodule=mapreduce=2,file=1,gfs*=3  -- GLOG_v=0 ./application.exe
+常用标志参数类型及其作用说明：
+标志参数
+类型
+作用
+logtostderr
+bool
+值为true的时候，日志信息输出到stderr，并非文件。默认值为 false。
+stderrthreshold
+int
+严重性级别在该门限值以上的日志信息除了写入日志文件以外，还要输出到stderr。各严重性级别对应的数值：INFO—0，WARNING—1，ERROR—2，FATAL—3
+默认值为2.
+minloglevel
+int
+严重性级别在该门限值以上的日志信息才进行记录。
+默认值为0.
+log_dir
+string
+日志信息记录路径。默认为空，如果没有指定信息输出到stderr，则信息保存在"/tmp/<program name>.<hostname>.<user name>.log.<severity level>.<date>.<time>.<pid>"文件中。 (e.g., "/tmp/hello_world.example.com.hamaji.log.INFO.20080709-222411.10474").
+
+v
+int
+对于使用“ VLOG(m)”（m为int型）表达式进行输出的日志信息，只在m的值小于该标志的值的时候，才进行输出。另外， 该设置可能被 vmodule标志给覆盖.默认为0.
+vmodule
+string
+分模块（文件）设置VLOG(m)日志信息的输出基本。命令格式为以逗号分开的“<module name>=<log level>”表达式组成。其中<module name> 是“glob pattern”，支持通配符，<module name>不包括文件的扩展名（.h,.cc等）。
+
+表1标志说明
+还有其他的标志参数定义在logging.cc，可在文件中搜索“DEFINE_”来进行查看。
+1.2     严重性分级记录信息
+glog可通过根据指定的严重性等级，来选择性记录日志。日志信息严重性等级按由低到高排列依次为：INFO, WARNING, ERROR, 和 FATAL四级。使用者可以在命令行中设置严重性等级门限值来控制日志的输出，详细见“参数设置”部分的“minloglevel”标志值的介绍。
+1.3     有条件地记录日志信息
+glog可以控制日志信息在指定条件下进行记录。具体使用如下：
+1， LOG_IF(INFO, num_cookies > 10) << "Got lots of cookies";
+
+上面的语句表示，只有当num_cookies > 10条件成立时，“Got lots of cookies”日志信息才被记录。
+
+2， LOG_EVERY_N(INFO, 10) << "Got the " << COUNTER << "th cookie";
+
+上面的语句表示，在程序中周期性的记录日志信息，在该语句第1、11、21……次被执行的时候，记录日志信息。COUNTER变量表示该语句被执行的次数。
+3， LOG_IF_EVERY_N(INFO, (size > 1024), 10) << "Got the " << COUNTER<< 
+"th big cookie";
+
+上面的语句为1，2项功能的合并，size>1024的条件连续成立10次的时候记录日志信息。COUNTER变量表示该条件成立的次数。
+4， LOG_FIRST_N(INFO, 20) << "Got the " << COUNTER << "th cookie";
+
+上面的语句表示，当该语句只在首次执行了20次以后记录日志信息， COUNTER变量表示该语句被执行的次数。
+
+1.4     有条件地中止程序
+       glog提供了CHECK宏，用于在调试地时候中止程序，及早发现程序错误。当通过该宏指定的条件不成立的时候，程序会中止，并且记录对应的日志信息。功能类似于ASSERT，区别是CHECK宏不受NDEBUG约束，在release版中同样有效。具体使用如下：
+                 CHECK(fp->Write(x) == 4) << "Write failed!";
+       当fp->Write(x) == 4成立时，记录“Write failed!”日志信息，并且中止程序，其中fp->Write(x) == 4为判定条件，日志信息以c++的stream操作形式生成。
+glog提供了多个便利的宏来处理特定关系的判定。具体有：
+1,判定大小关系
+
+CHECK_EQ, CHECK_NE, CHECK_LE, CHECK_LT, CHECK_GE, CHECK_GT，使用这些宏需要注意类型一致，如果出现类型不一致的，可使用static_cast转换。
+
+2,判定指针是否为空
+
+        CHECK_NOTNULL（some_ptr），可用于对象初始化的时候。
+3，判定字符串是否相等
+
+         CHECK_STREQ, CHECK_STRNE, CHECK_STRCASEEQ, CHECK_STRCASENE。可进行大小写敏感或不敏感字符串来分别判定。
+4，     判定浮点是否相等或相近
+CHECK_DOUBLE_EQ，CHECK_NEAR。这两个宏都需要指定一个可容忍的偏差上限。
+当这些宏判定条件不成立时，glog会生成一个FATAL级别的日志信息，该信息包含比较的两个值和stream方式传入的字符串，然后中止程序。
+1.5     异常信号处理
+      glog提供了比较方便的程序异常处理机制。例如，当程序出现SIGSEGV异常信号时，glog的默认异常处理过程会导出非常有用的异常信息。异常处理过程可以通过google::InstallFailureSignalHandler()来自定义。下面为异常处理过程的输出例子：
+*** Aborted at 1225095260 (unix time) try "date -d @1225095260" if you are using GNU date ***
+*** SIGSEGV (@0x0) received by PID 17711 (TID 0x7f893090a6f0) from PID 0; stack trace: ***
+
+PC: @           0x412eb1 TestWaitingLogSink::send()
+
+    @     0x7f892fb417d0 (unknown)
+    @     0x412eb1 TestWaitingLogSink::send()
+    @     0x7f89304f7f06 google::LogMessage::SendToLog()
+
+    @     0x7f89304f35af google::LogMessage::Flush()
+    @     0x7f89304f3739 google::LogMessage::~LogMessage()
+
+    @     0x408cf4 TestLogSinkWaitTillSent()
+    @     0x4115de main
+    @     0x7f892f7ef1c4 (unknown)
+    @     0x4046f9 (unknown)
+
+默认情况下，异常信息是输出到stderr，通过InstallFailureWriter（）可以改变输出目标。
+1.6     支持debug功能
+      glog提供特定的宏只在debug模式下生效。以下分别对应LOG、LOG_IF、DLOG_EVERY_N操作的专用宏。
+   DLOG(INFO) << "Found cookies";
+
+   DLOG_IF(INFO, num_cookies > 10) << "Got lots of cookies";
+
+   DLOG_EVERY_N(INFO, 10) << "Got the " << COUNTER << "th cookie";
+
+1.7     自定义日志信息
+        glog提供VLOG宏，让用户自定义分级信息，该分级与LOG宏对应的严重性分级是独立管理，在命令行参数设置中独立设置“v”或“vmodule”参数来控制，具体见“参数设置”部分标志说明。VLOG宏便于用户调试、查找完问题以后，屏蔽日志信息，减轻负担。具体使用如下：
+  VLOG_IF(1, (size > 1024))<< "I'm printed when size is more than 1024 and when you run the ""program with --v=1 or more";
+       上面的语句，只有在size>1024成立时且命令行参数v的值不小于1，才记录日志信息。
+  VLOG_EVERY_N(1, 10)<< "I'm printed every 10th occurrence, and when you run the program ""with --v=1 or more. Present occurence is " << COUNTER;
+       上面的语句，只有在命令行参数v的值不小于1时，才会每执行10次记录一次日志信息。
+  VLOG_IF_EVERY_N(1, (size > 1024), 10)<< "I'm printed on every 10th occurence of case when size is more "" than 1024, when you run the program with --v=1 or more. "; "Present occurence is " << COUNTER;
+       上面的语句，只有在命令行参数v的值不小于1时，若size>1024条件连续成立10次，记录一次日志信息。
+1.8     线程安全日志记录
+      glog提供了线程安全的日志记录方式。在<glog/raw_logging.h>文件中提供了相关的宏，如，RAW_CHECK，RAW_LOG等。这些宏的功能与CHECK，LOG等一致，除此以外支持线程安全，不需要为其分配任何内存和提供额外的锁（lock）机制。
+1.9     系统级日志记录
+  glog除了提供了普通的日志记录宏，还提供SYSLOG, SYSLOG_IF,和 SYSLOG_EVERY_N宏，这些宏将日志信息通过syslog()函数记录到系统日志。
+1.10   google perror风格日志信息
+     glog提供了与LOG*和CHECK宏作用等价的PLOG()、PLOG_IF() 和PCHECK()宏，不同的是，后者在记录日志信息的时候，会将errno的状态及其描述附加到日志描述中。
+如：
+PCHECK(write(1, NULL, 2) >= 0) << "Write NULL failed";
+
+当条件不成立时，会输出日志信息：
+F0825 185142 test.cc:22] Check failed: write(1, NULL, 2) >= 0 Write NULL failed: Bad address [14]
+
+1.11   精简日志字符串信息
+      日志信息的字符串会占用比较大的内存空间，另外还带来隐私泄露的问题。glog提供了GOOGLE_STRIP_LOG宏在编译时候去除日志的字符串信息。
+3.   其他说明
+1， windows平台使用注意
+因为glog的严重性级别中使用了ERROR宏，与<windows.h>文件中冲突，可通过以下两种方式避免：
+     a,在包含<windows.h>文件之前，定义宏WIN32_LEAN_AND_MEAN 或者NOGDI。
+     b,在包含<windows.h>文件之后，undef掉ERROR定义。
+
+
+
+
+
+
+1、下载，配置，编译，安装。动态链接库为 libglog.so ，头文件为项目根目录下src目录下的glog文件夹。
+2、基本使用方法：
+在程序入口时，调用：google::InitGoogleLogging(argv[0]);   如果不写这句话，则只输出到stderr
+
+google::SetLogDestination(google::INFO,"log/INFO_");   设置日志输出目录及日志文件名前缀
+google::InstallFailureSignalHandler();　　　　输出异常信息
+基本使用： LOG(INFO) << userid <<  << "not found!"; 　　　　//INFO表示日志级别
+默认输出路径： /tmp下 格式为"/tmp/<program name>.<hostname>.<user name>.log.<severity level>.<date>.<time>.<pid>"
+将日志输出到终端：可以通过 GLOG_logtostderr=1 ./test 来执行 test 可执行文件
+设置日志输出目录：google::SetLogDestination(google::INFO,"./prefix_");   //第一个参数为日志级别，后面表示日志路径与日志名前缀。
+ 
+ 
+可以参考的网站：
+http://blog.csdn.net/netlinux/article/details/6700549
+http://google-glog.googlecode.com/svn/trunk/doc/glog.html
+ 
+ 
+glog 的命令行参数：调用方式有两种，一种是加上 GLOG_ 前缀，再跟执行文件；一种是在执行文件后，加上 -- 做为参数。
+如：./your_application --logtostderr=1                  GLOG_logtostderr=1 ./your_application
+logtostderr (bool, default=false)　　设置是把日志输出到文件，还是stderr，默认输出到文件。（默认所有级别日志都会输出到日志），类似的还有 alsologtostderr,colorlogtostderr
+stderrthreshold (int, default=2, which is ERROR)　　设置高于某等级的日志，会额外输出到 stderr。
+minloglevel (int, default=0, which is INFO) 　　　　设置只要高于此等级的日志，才进行记录
+log_dir (string, default="")　　　　　　　　　　　　设置日志输出目录，默认为 /tmp 目录
+v (int, default=0)　　　　　　　　　　　　　　　　　设置只有当自定义日志级别值小于此值时，才进行输出，默认为0,不输出自定义日志。
+vmodule (string, default="")　　　　　　　　　　　　设置VLOG(m)相关，如：GLOG_vmodule=server=2,client=3 表示文件名为server的只输出小于 2 的日志，文件名为 client 的只输出小于 3 的日志。如果该选项使用了，将覆盖上面的 v 选项。
+ 
+LOG_IF(级别，条件)
+LOG_EVERY_N(级别，执行次数)  比如：LOG_EVERY_N(INFO, 10) << "Got the " << google::COUNTER << "th cookie";   
+LOG_FIRST_N(级别，第一次执行多少次后开始输出日志)
+ 
+VLOG：用户自定义级别输出。
+DLOG：只在DEBUG模式下输出。
+PLOG：CHECK宏作用等价
+ 
+#define GOOGLE_STRIP_LOG 3    //this must go before the #include     定义小于此级别的日志语句将在编译时清除，以减小编译后的文件大小。
+#include <glog/logging.h>
+ 
+CMakeLists.txt 如下：
+
+include_directories("include")
+link_directories("lib")
+add_definitions("-g")
+link_libraries(glog unwind pthread)
+add_executable(test1 test1.cpp)
+
+如果是64位系统，就要链接 libunwind 库
+ 

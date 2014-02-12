@@ -1,0 +1,276 @@
+你注意到C++的函数对象都是传值的形式了吗？---boost::ref的强大用处~
+
+ 
+
+如果你经常使用STL算法，那么你会注意到函数对象的传递都是传值的形式如下面的sort, for_each,_Compare __comp 而不是 _Compare& __comp传递引用。
+
+template<typename _RandomAccessIterator, typename _Compare>
+    inline void
+    sort(_RandomAccessIterator __first, _RandomAccessIterator __last,
+     _Compare __comp)
+    {
+    }
+template<typename _InputIterator, typename _Function>
+    _Function
+    for_each(_InputIterator __first, _InputIterator __last, _Function __f)
+    {
+      // concept requirements
+      __glibcxx_function_requires(_InputIteratorConcept<_InputIterator>)
+      __glibcxx_requires_valid_range(__first, __last);
+      for ( ; __first != __last; ++__first)
+    __f(*__first);
+      return __f;
+    }
+这里你是否会疑惑呢，为什么要用传值的形式而不用传递引用呢，毕竟函数对象区别于函数指针的一大优点是自身可以带有状态变量。如下面这个函数对象它是带有一个状态变量a的，其实可以带有更复杂更占内存的变量更多的变量，那么传值的方式肯定有很大的拷贝代价了。
+
+struct Func
+{
+    int a;
+
+    Func()
+    : a(0)
+    {
+
+    }
+
+    void operator()(int x)
+    {
+        add(x);
+    }
+
+    void add(int x)
+    {
+        cout << "a: " << a << endl;
+        cout << "this: " << this << endl;
+        cout << "add " << x << endl;
+        a += x;
+    }
+};
+另外有一点是用传引用的方式能够改变状态变量如下面的a的值，如果我们希望传递的方式就是引用方式呢，我们就是希望被传递的Func()能能够在传递给其它函数后被其它函数使用而且改变自身状态，其它函数使用之后它的自身状态希望是变化的。
+例如我写过一个对于OTL读取数据库的封装。
+template<typename Func>
+    void process(Func func)
+    {
+        //        process(func);
+        LOG(INFO) << Pval(sql) << "\n";
+        try
+        {
+            otl_stream os(1024, sql.c_str(), conn); //连接好数据库，并读出数据
+            func(os);
+            os.flush();
+        }
+        catch (otl_exception& p)
+        { // intercept OTL exceptions
+            cerr << p.msg << endl; // print out error message
+            cerr << p.stm_text << endl; // print out SQL that caused the error
+            cerr << p.sqlstate << endl; // print out SQLSTATE message
+            cerr << p.var_info << endl; // print out the variable that caused the error
+        }
+    }
+现在我有一个应用，读取数据库中的词并统计热门词，
+
+struct ReadFunc
+{
+    typedef std::deque<Node> Deque;
+    typedef std::priority_queue<Node, Deque, std::greater<Node> > PQueue;
+    typedef std::tr1::unordered_map<string, int> HashMap;
+    HashMap hash_map;
+    PQueue m_pqueue;
+    ch_convert::ChConverter m_converter;
+    long long m_keyNum;
+    long long m_keyCount;
+    template<typename Stream>
+            void operator()(Stream & os)
+    {
+        string key;
+        int count;
+        int line_num = 0;
+        long long key_count = 0;
+        boost::array<char, 2 > seperator = {' ', '\t'};
+
+        while (!os.eof())
+        {
+            os >> key >> count;
+           …
+         }
+     }
+现在问题来了，见下面
+
+void run()
+    { //normal 情况 热门词统计
+        LOG(INFO) << "Normal run" << endl;
+        ReadFunc reader;
+        run_(reader);  //在函数里面m_dbreader.process(reader),这里我就希望reader中的记录热门词的m_queue就是要被改变！如果传值。。。oh my god!!!!
+        finalize_(reader);
+    }
+那么言归正传，为什么STL要是使用传值的方式呢？？用于传递函数对象呢？？？ 我觉得是为了下面的原因
+
+std::sort(begin, end, Cmp());
+
+看到了吗，传递临时的函数对象，这个很常见！！ 我只要一行代码就OK。如果是传引用的形式呢_Compare& __comp,那抱歉，你不能这么写，因为临时对象不能传引用。。。
+
+你要写成
+
+Cmp cmp;
+
+std::sort(begin, end, cmp);
+
+很麻烦是吧 呵呵，我还是希望传引用有办法两全其美吗？
+
+有一个work around, 用const 引用传递，这样可以用来传递临时变量了。
+
+template<typename _RandomAccessIterator, typename _Compare> inline void sort(_RandomAccessIterator __first, _RandomAccessIterator __last, const _Compare& __comp) { }
+
+这个办法对于我上面提到的统计热门词也是试用的，我可以传递引用，并且改变我的reader内部状态了，但是编译器有些不高兴了，它会warning因为你是const的声明，你强制去掉了它的const呵呵。。。。
+
+C++标准鼓励我们怎么做呢，比较for_each等接口都是按照传值写的啊。。。 你如果用那些接口你就没办法传引用啦？
+
+用boost::ref, kaka 问题全部解决。
+
+template<typename T>
+void sort(T func)
+{
+    func(3);
+}
+
+
+Func func;
+func(1);
+cout << "func.a: " << func.a << endl;   //1
+sort(boost::bind<void>(boost::ref(func), _1));
+cout << "func.a: " << func.a << endl;  //4    //状态改变了，我们传递的是引用~
+ 
+ 注意C++标准的tr1也实现了，ref,bind,function等等但是我还没完全弄懂，似乎有问题通不过编译，所以当前还是建议暂时用boost的靠谱一些。。。 呵呵
+ 
+附注关于bind
+ 
+http://aszt.inf.elte.hu/~gsd/halado_cpp/ch11.html
+
+boost::bind is a generalization of the standard functions std::bind1st and std::bind2nd. It supports arbitrary function objects, functions, function pointers, and member function pointers, and is able to bind any argument to a specific value or route input arguments into arbitrary positions. Bind does not place any requirements on the function object; in particular, it does not need the result_type, first_argument_type and second_argument_type standard typedefs.
+
+Example:
+
+int f(int a, int b)
+{
+    return a + b;
+}
+
+int g(int a, int b, int c)
+{
+    return a + b + c;
+}
+
+Usage of bind
+
+bind(f, 1, 2) will produce a "nullary" function object that takes no arguments and returns f(1, 2). Similarly, bind(g, 1, 2, 3)() is equivalent to g(1, 2, 3).
+
+It is possible to selectively bind only some of the arguments.
+
+bind(f, _1, 5)(x)  /* is equivalent to */  f(x, 5)
+
+Here _1 is a placeholder argument that means "substitute with the first input argument."
+
+The same with the older version:
+
+std::bind2nd(std::ptr_fun(f), 5)(x);
+
+More complex solutions:
+
+bind(f, _2, _1)(x, y);                 // f(y, x)
+bind(g, _1, 9, _1)(x);                 // g(x, 9, x)
+bind(g, _3, _3, _3)(x, y, z);          // g(z, z, z)
+bind(g, _1, _1, _1)(x, y, z);          // g(x, x, x)
+
+Note that, in the last example, the function object produced by bind(g, _1, _1, _1) does not contain references to any arguments beyond the first, but it can still be used with more than one argument. Any extra arguments are silently ignored, just like the first and the second argument are ignored in the third example.
+
+The argumenst are copies. If we want to use references, we need helper functions:
+
+int i = 5;
+
+bind(f, i, _1);
+bind(f, ref(i), _1);
+
+Function objects
+
+The bind is not limited to functions; it accepts arbitrary function objects. In the general case, the return type of the generated function object's operator() has to be specified explicitly (without a typeof operator the return type cannot be inferred):
+
+struct F
+{
+    int operator()(int a, int b) { return a - b; }
+    bool operator()(long a, long b) { return a == b; }
+};
+
+F f;
+
+int x = 104;
+bind<int>(f, _1, _1)(x);   // f(x, x), i.e. zero 
+
+int x = 8;
+bind(std::less<int>(), _1, 9)(x);    // x < 9
+
+Example
+
+class image;
+
+class animation
+{
+public:
+
+    void advance(int ms);
+    bool inactive() const;
+    void render(image & target) const;
+};
+
+std::vector<animation> anims;
+
+template<class C, class P> void erase_if(C & c, P pred)
+{
+    c.erase(std::remove_if(c.begin(), c.end(), pred), c.end());
+}
+
+void update(int ms)
+{
+    std::for_each(anims.begin(), anims.end(), boost::bind(&animation::advance, _1, ms));
+    erase_if(anims, boost::mem_fn(&animation::inactive));
+}
+
+void render(image & target)
+{
+    std::for_each(anims.begin(), anims.end(), boost::bind(&animation::render, _1, boost::ref(target)));
+}
+
+Reference wrapper
+
+The header boost/ref.hpp defines the class template boost::reference_wrapper<T>, the two functions boost::ref and boost::cref that return instances of boost::reference_wrapper<T>, and the two traits classes boost::is_reference_wrapper<T> and boost::unwrap_reference<T>.
+
+The purpose of boost::reference_wrapper is to contain a reference to an object of type T. It is primarily used to "feed" references to function templates (algorithms) that take their parameter by value.
+
+To support this usage, boost::reference_wrapper provides an implicit conversion to T &. This usually allows the function templates to work on references unmodified.
+
+namespace boost
+{
+    template<class T> class reference_wrapper;
+    template<class T> reference_wrapper<T> ref(T & t);
+    template<class T> reference_wrapper<T const> cref(T const & t);
+    template<class T> class is_reference_wrapper<T const>;
+    template<class T> class unwrap_reference<T const>;
+}
+
+Implementation is trivial
+
+template<class T> class reference_wrapper
+{
+public:
+    typedef T type;
+    explicit reference_wrapper(T & t);
+
+    operator T & () const;
+
+    T & get() const;
+    T* get_pointer() const;
+private:
+    T* t_;
+};
+
+Prev     Up     Next
+Define your own streambuffer     Home     Tuple

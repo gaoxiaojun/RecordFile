@@ -1,0 +1,68 @@
+Boost：：Asio：：Error的用法浅析
+一般而言我们创建用于接收error的类型大多声明如下：
+ boost::system::error_code error 我们用这个类型去接受在函数中产生的错误
+如
+socket.connect(  endpoint, error);
+
+如果连接失败，错误类型会保存到error中，比如连接主机失败可能会返回这样的错误
+
+
+boost::asio::error::host_not_found;
+
+通过if （error）检测到error后，抛出异常
+
+throw boost::system::system_error(error);
+
+需要注意的是，我们的error被 转化成 system_error了
+
+显示错误很简单了，std::cout << e.what()
+
+就哦啦。
+
+大致的异常都是这个步骤进行的，
+
+然而还有一点在异步调用的时候
+
+产生的异常error 的传递是个问题，因为异步会立刻返回，局部变量是会被销毁的，
+
+boost::asio::placeholders::error,将会保存异常的状态，这样我们使用异步调用时如
+
+socket::async_write_some的时候不用自己创建boost::system::error_co error 了，直接使用
+
+boost::asio::placeholders::error作为参数即可，
+
+同理，我们sync_write_some需要返回读写数据的大小，令人开心的是boost::asio::placeholders::bytes_transferred直接作为参数就可以保存数据大小。
+
+实例如下：
+
+boost::asio::async_write(socket_, boost::asio::buffer(message_),
+        boost::bind(&tcp_connection::handle_write, shared_from_this(),
+          boost::asio::placeholders::error,
+          boost::asio::placeholders::bytes_transferred));
+  }
+参考手册上说的很明确， boost::asio::placeholders::error,boost::asio::placeholders::bytes_transferred就是为异步调用使用bind的时候设计的。
+
+当然了boost::system::error_co error还用有用的，同步调用的时候我们就用它作为参数
+
+如：
+
+boost::system::error_code error;
+
+ size_t len = socket.read_some(boost::asio::buffer(buf), error);
+
+同样在异步调用的回调handle中也用它作参数如
+
+void handle_write(const boost::system::error_code& /*error*/,
+
+      size_t /*bytes_transferred*/)
+  {
+  }
+
+
+
+总结就是说异步就用 boost::asio::placeholders::error,boost::asio::placeholders::bytes_transferred
+
+
+
+同步就用boost::system::error_code
+

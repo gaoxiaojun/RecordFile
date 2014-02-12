@@ -1,0 +1,93 @@
+boost::asio学习 - buffer篇
+
+boost::asio::streambuf
+
+使用read_until() 和 async_read_until()读取line-based（使用"\r\n"或者其它自定义字符序列作为delimiter）数据时需要boost::asio::streambuf来缓存读取到的数据。
+
+下面是boost文档中的read_unitl()示例：
+
+
+boost::asio::streambuf sb;
+...
+std::size_t n = boost::asio::read_until(sock, sb, '\n');
+boost::asio::streambuf::const_buffers_type bufs = sb.data();
+std::string line(
+    boost::asio::buffers_begin(bufs),
+    boost::asio::buffers_begin(bufs) + n);
+
+
+delimiters可以为a single char, a std::string or a boost::regex，而且还可以是自定义的函数或函数对象，示例参见 Line-Based Operations。
+
+ 
+
+boost::asio::async_read_until() 示例: posix_chat_client，其它示例：http sync client
+
+ 
+
+ 
+
+boost::asio::buffer
+
+boost::asio::buffer()不会新分配存储空间，而是直接使用传入boost::array、std::vector、std::string、char[]等类型参数已分配的空间。boost::asio::buffer()返回值为const_buffer或mutable_buffer对象，和buffer对象相关的函数操作有：boost::asio::buffer_size(), boost::asio::buffer_cast()
+
+socket.read_some() 示例
+
+boost::asio::write() 示例
+
+boost::asio::buffer_size 示例
+
+ 
+
+ 
+
+ConstBufferSequence类型
+
+一个自定义的ConstBufferSequence类型实现：shared_const_buffer
+
+ 
+
+ 
+
+异步IO操作中自定义内存分配
+
+asio在执行异步IO操作时会使用系统函数来动态分配内存，使用完后便立即释放掉；在IO操作密集的应用中，这种内存动态分配策略会较大地影响程序的整体性能。为了避免这个问题，可以在在应用程序中创建一个内存块供asio异步IO操作使用，异步IO操作通过自定义接口 asio_handler_allocate 和 asio_handler_deallocate 来使用该内存块。
+
+示例：custom_allocation_server 
+
+上述例子中使用到了 boost::aligned_storage<1024> storage_ 来管理原始内存。
+
+ 
+
+ 
+
+boost::ip::tcp::iostream
+
+将ip::tcp::iostream绑定到底层的socket上，通过iostream上的输入输出来进行IO操作：daytime_server 和 daytime_client
+
+ 
+
+ 
+
+gather-write写操作
+
+"gather-write"即将存放在多个内存块中的数据通过一次系统调用完成所有数据的写操作，相对于多次执行系统调用"gather-write"的IO性能显然更好。
+
+std::vector<boost::asio::const_buffer> buffers;
+buffers.push_back(boost::asio::buffer(outbound_header_));
+buffers.push_back(boost::asio::buffer(outbound_data_));
+boost::asio::async_write(socket_, buffers, handler);
+完整示例：serialization connection
+
+ 
+
+示例2：
+
+
+static char eol[] = { '\n' };
+boost::array<boost::asio::const_buffer, 2> buffers = {{    //此处使用2个大括号是为了编译器兼容
+  boost::asio::buffer(read_msg_.body(), read_msg_.body_length()),
+  boost::asio::buffer(eol) }};
+      
+boost::asio::async_write(output_, buffers,
+  boost::bind(&posix_chat_client::handle_write_output, this,
+            boost::asio::placeholders::error));

@@ -1,0 +1,117 @@
+timeval
+
+目录
+
+问题描述
+测试代码
+编辑本段
+问题描述
+
+DESCRIPTION
+The functions gettimeofday and settimeofday can get and set the time as
+well as a timezone. The tv argument is a timeval struct, as specified
+其中tv_usec代表的是微秒（百万分之一秒）精度。
+编辑本段
+测试代码
+
+#include <stdio.h>
+#include <sys/time.h>
+#include <time.h>
+int gettimeofday(struct timeval *tv, struct timezone *tz);
+int main(int argc,char * argv[]){
+struct timeval tv;
+while(1){
+gettimeofday(&tv,NULL);
+printf("time %u:%u\n",tv.tv_sec,tv.tv_usec);
+sleep(2);
+}
+return 0;
+}
+返回结果为：
+evil@dcenter:~/tmp$ ./a.out
+time 1142077839:903605
+time 1142077841:910129
+time 1142077843:920155
+time 1142077845:930180
+time 1142077847:940205
+time 1142077849:950231
+time 1142077851:960256
+time 1142077853:970280
+time 1142077855:980307
+time 1142077857:990331
+结构与应用
+结构：timeval
+struct timeval {
+long tv_sec; // seconds
+long tv_usec; // and microseconds
+};
+timeval
+timeval结构的用于指定时间值。它是联系在一起的,美国加州大学柏克莱分校的软件Time.h分布(BSD)文件。
+头文件： <sys/time.h>
+timeval
+{
+time_t tv_sec; //秒 [long int]
+suseconds_t tv_usec; //微秒 [long int]
+};
+成员：
+tv_sec
+秒
+tv_usec
+微秒
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ struct timeval结构体 以及 gettimeofday()函数 2011-09-01 12:29:15
+分类： C/C++
+一、struct timeval结构体
+struct timeval结构体在time.h中的定义为：
+struct timeval
+{
+__time_t tv_sec;        /* Seconds. */
+__suseconds_t tv_usec;  /* Microseconds. */
+};
+其中，tv_sec为Epoch到创建struct timeval时的秒数，tv_usec为微秒数，即秒后面的零头。比如当前我写博文时的tv_sec为1244770435，tv_usec为442388，即当前时间距Epoch时间1244770435秒，442388微秒。需要注意的是，因为循环过程，新建结构体变量等过程需消耗部分时间，我们作下面的运算时会得到如下结果：
+#include <sys/time.h>
+#include <stdio.h>
+  
+int
+main(void)
+{
+        int i;
+        struct timeval tv;
+
+        for(i = 0; i < 4; i++){
+                gettimeofday(&tv, NULL);
+                printf("%d\t%d\n", tv.tv_usec, tv.tv_sec);
+                sleep(1);
+        }
+
+        return 0;
+}
+329612	1314851429
+329782	1314851430
+329911	1314851431
+330036	1314851432
+前面为微秒数，后面为秒数，可以看出，在这个简单运算中，只能精确到小数点后面一到两位，或者可以看出，每进行一次循环，均需花费0.005秒的时间，用这个程序来作计时器显然是不行的，除非精确计算产生的代码消耗时间。
+
+二、gettimeofday()函数
+原型：
+/* Get the current time of day and timezone information,
+   putting it into *TV and *TZ. If TZ is NULL, *TZ is not filled.
+   Returns 0 on success, -1 on errors.
+   NOTE: This form of timezone information is obsolete.
+   Use the functions and variables declared in <time.h> instead. */
+extern int gettimeofday (struct timeval *__restrict __tv,
+                         __timezone_ptr_t __tz) __THROW __nonnull ((1));
+gettimeofday()功能是得到当前时间和时区，分别写到tv和tz中，如果tz为NULL则不向tz写入。

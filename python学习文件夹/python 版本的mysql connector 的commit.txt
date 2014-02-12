@@ -1,0 +1,26 @@
+做了一个测试：
+
+在python中利用mysql connector 连接数据库insert 
+
+测试表明在execute后，insert 的数据已经进入了mysql,但是如果最后没有commit 的话已经进入数据库的数据会被清除掉，自动回滚
+
+这点是可以通过数据库中的自增id来看出来的。
+
+但是这种commit方案导致了自增id的非连续性，在某些时候是真心的有问题
+
+原本id是4，多次insert 然后没有commit,再insert 后commit 的话，这个ID就不是5了，远远大于5！
+
+出现这一问题的根源到底是connector还是mysql本身呢？
+
+python 下的另外一个数据库连接类mysqldb会不会存在同样的情形！
+
+
+ps,做了一下补充测试。commit 只是对于innodb生效，而对于myisam 来说，只要execute就一定生效了，这就需要综合考虑在做数据连接层设计的时候是否需要把trans的控制独立出来可控，然后在编码层面可以更灵活的控制数据库的操作(多次Exce,最后才commit)！
+
+这个问题之前是没有注意过的
+
+
+补充之二，之前在php操作mysql的时候，没有太注意这个问题，虽然有利用到trans,但是应该不是所有的地方都开启了trans，是我的php版本的mysql操作自动做了某些操作还是？当然connector 的说明说得很清楚，autocommit被关闭了！从事务角度和数据库性能操作的角度来讲autocommit 确实应该被关闭！那就是说有可能我之前的php版本的mysql操作层在某个地方开启了autocommit，还是说作为一个配置在innodb上被打开了？
+
+
+无限补充三: 在execute 一些select 后，如果不调用fetcchxxx 之类的语法，就去执行insert 或者update 或者其他语句，有的时候会出错:Unread result found.(存在未读取的数据集)。不论是不是真的有数据（忍不住吐糟一下:度娘查不出"unread result found"资料啊！ 度娘你不懂英文啊！）

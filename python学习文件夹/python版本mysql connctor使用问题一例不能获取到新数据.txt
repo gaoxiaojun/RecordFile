@@ -1,0 +1,38 @@
+sql='select * from tb1'
+
+self.cursor.execute(sql)
+
+ rows=self.cursor.fetchall() 
+time.sleep(30)
+
+self.cursor.execute(sql)
+
+ rows=self.cursor.fetchall() 
+time.sleep(30)
+
+
+self.cursor.execute(sql)
+
+ rows=self.cursor.fetchall() 
+time.sleep(30)
+
+
+在上面的代码中，使用了同一个conn来执行同一个sql,每次执行间隔了30秒。这段代码如果换成其他语言是不会有问题的，但是在这里有问题
+
+connector中对于同一个conn连接执行同一个sql的话，会自动缓存行为，也就是说第一次执行返回的是啥结果，后面两次也依然是啥结果，不论在sleep 30秒的过程中数据库中的数据是否发生了变化
+
+(中间如果嵌套一个update好像结果也是一样的，好像只是select 变化了后续才会变化)
+
+如果sql不一样的话，这个返回结果会发生改变。
+
+另外一点也需要注意:同一个连接中对于一个select 模式execute,如果没有fetch,那么后续的select execute 也会无意义
+
+官方文档的原话是:Note that you have to fetch all rows before being able to execute new queries using the same connection.
+
+tmd,这句话也太容易被忽视了吧！！！
+
+这种看似优化的行为摆明了是connector在自以为是！！！你妹的妹！
+
+这个小小的问题让我今天测试了无数遍！
+
+改进的建议是：不要使用长连接，使用完了马上就关闭！

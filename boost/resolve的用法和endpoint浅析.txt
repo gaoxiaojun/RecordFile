@@ -1,0 +1,41 @@
+tcp::resolver 一般和 tcp::resolver::query 结合用 ， 通过query这个词顾名思义就知道它是用来查询socket 的相应信息，一般而言我们关心socket的东东有address，port而已，通过tcp::resolver 很容易实现设置和查询，它通过query 把字符串格式的ip如192.168.0.200或主机名http:://localhost，端口“8080”等转化成socket内部表示格式，这样我们应用的时候可以直接使用字符串的形式，而且不用再担心socket的字节顺序转化问题。示例如下：boost::asio:: io_service io_service ;
+  tcp::resolver resolver (io_service );
+  tcp::resolver::query query ("localhost" , "9000" );
+还有要说明的是，boost：：asio把通讯双方（server，client ）都用endpoint 的表示，所以endpoint中的address ，port 分别封装了ip ， 和端口。貌似resolver和endpoint不相干，于是乎出现tcp::resolver::iterator了，它是resolver的迭代器，其实就是endpoint的指针，那么就可以这样：
+tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
+tcp::resolver::iterator end ;
+boost::system::error_code error = boost::asio::error::host_not_found;
+tcp::endpoint endpoint ;
+//if(error)
+// cout << "  error is true ! \n";
+while (error && endpoint_iterator != end)
+    {
+    endpoint = *endpoint_iterator ;
+      socket.close();
+      socket.connect(endpoint, error);
+      endpoint_iterator++ ;
+    }
+得到endpoint后就好说啦，endpoint.address().to_string()就能够返回string格式的ip地址，short endpoint.port() 返回端口。
+其实endpoint 完全可以自己构造，方法也是很简单的，
+tcp::endpoint(tcp::v4(), (unsigned short)9000) 这个是server端的用法，tcp::v4()直接返回自己的address，如果用于client那么需要设置server的ip ，实现如下：
+boost::system::error_code error = 
+                         boost::asio::error::host_not_found;
+boost::asio::ip::address add;
+add.from_string("127.0.0.1");
+tcp::endpoint endpoint(add , short(9000) );
+socket.connect(endpoint, error);
+这样不使用resolver也是可以的。
+还有更神奇的：
+boost::asio::io_service ioservice ;
+  boost::asio::io_service my_io_service ;
+  tcp::resolver resolver(my_io_service);
+ 
+    tcp::resolver::query query("www.google.com", "http");
+    tcp::resolver::iterator iter = resolver.resolve(query);
+    tcp::resolver::iterator end; // End marker.
+while (iter != end)
+{
+  tcp::endpoint endpoint = *iter++;
+  std::cout << endpoint << std::endl;
+}
+这样有发现一个新的用途，通过resolver 迭代可以得到多个节点endpoin，比如google 就有好几个ip 。

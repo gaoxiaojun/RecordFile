@@ -1,0 +1,189 @@
+一、功能宏优点
+
+在进行软件系统的开发过程中，对不同的功能模块的代码使用分别使用与之对应的宏将其控制起来，其有如下优点：
+
+①、方便移植
+
+在移植过程中，可根据功能宏快速的将功能模块代码进行提取和分离。
+
+②、增强可扩展性
+
+可通过宏的开启和关闭来控制此功能开启和关闭，增强了平台的可配置性、可扩展性。
+
+③、快速定位问题
+
+在软件的运行或测试过程中，往往会出现各种问题，如果怀疑某一模块有问题，可将此功能模块关闭，如果问题消失，则说明问题就在此模块，否则可排除此模块。
+
+④、提高开发效率
+
+如果未使用功能宏控制时，如果不要此功能时，则需要对代码进行修改、删除等操作，但之后有需要此功能时，又得重新去修改、增加相应的代码。而一旦有功能宏控制，只需将对应的宏开启或关闭就能达到想要的目的，而不用对代码进行任何的修改。
+
+二、功能宏开关实现
+
+随着平台功能的不断增加，功能宏的数量也随之递增，此时会出现一个困扰设计和开发人员的问题：如何更加有效的管理功能宏？针对这种现象，故提出了功能宏开关模块。顾名思义，功能宏开关模块是通过一个开关（switch）来控制某个宏的开启和关闭，以此达到控制软件平台某个功能的开启和关闭。有2种方法实现功能宏开关模块：
+
+①、通过Makefile实现
+
+1. 宏开关设置
+
+[html] view plaincopy
+// filename: mars_switch.mak
+DEBUG_SUPPORT = TRUE
+OS_TYPE = AIX
+[html] view plaincopy
+// filename: mars_switch.mak  
+DEBUG_SUPPORT = TRUE  
+  
+OS_TYPE = AIX  
+2. 宏的加载
+
+[cpp] view plaincopy
+// filename: mars_option.mak
+ifeq(TRUE, $(strip $(DEBUG_SUPPORT))
+OPTIONS += __DEBUG__
+endif
+ifeq(LINUX, $(strip $(OS_TYPE))
+OPTIONS += __LINUX__
+else
+ifeq(AIX, $(strip $(OS_TYPE))
+OPTIONS += __AIX__
+else
+ifeq(UNIX, $(strip $(OS_TYPE))
+OPTIONS += __UNIX__
+endif
+endif
+endif
+[cpp] view plaincopy
+// filename: mars_option.mak  
+ifeq(TRUE, $(strip $(DEBUG_SUPPORT))  
+    OPTIONS += __DEBUG__  
+endif  
+  
+ifeq(LINUX, $(strip $(OS_TYPE))  
+    OPTIONS += __LINUX__  
+else  
+    ifeq(AIX, $(strip $(OS_TYPE))  
+        OPTIONS += __AIX__  
+    else  
+        ifeq(UNIX, $(strip $(OS_TYPE))  
+            OPTIONS += __UNIX__  
+        endif  
+    endif  
+endif  
+3. 宏的编译
+[cpp] view plaincopy
+// filename: Makefile
+CFLAGS += $(patsubst %, -D%, $(OPTIONS))
+[cpp] view plaincopy
+// filename: Makefile  
+CFLAGS += $(patsubst %, -D%, $(OPTIONS))  
+4. 宏的使用
+[cpp] view plaincopy
+int main(int argc, const char *argv[])
+{
+#if defined(__LINUX__)
+fprintf(stdout, "OS is linux!");
+#elif defined(__AIX__)
+fprintf(stdout, "OS is aix!");
+#elif defined(__UNIX__)
+fprintf(stdout, "OS is unix!");
+#endif /*__LINUX__*/
+}
+[cpp] view plaincopy
+int main(int argc, const char *argv[])  
+{  
+#if defined(__LINUX__)  
+    fprintf(stdout, "OS is linux!");  
+#elif defined(__AIX__)  
+    fprintf(stdout, "OS is aix!");  
+#elif defined(__UNIX__)  
+    fprintf(stdout, "OS is unix!");  
+#endif /*__LINUX__*/  
+}  
+②、通过头文件实现
+
+1. 宏值定义
+
+[cpp] view plaincopy
+// filename: mars_type.h
+#define __ON__ (-1)
+#define __OFF__ (-2)
+#define __AUTO__ (-3)
+#define LINUX (-1)
+#define AIX (-2)
+#define UNIX (-3)
+[cpp] view plaincopy
+// filename: mars_type.h  
+#define __ON__        (-1)  
+#define __OFF__       (-2)  
+#define __AUTO__    (-3)  
+  
+#define LINUX            (-1)  
+#define AIX                (-2)  
+#define UNIX              (-3)  
+2. 宏的加载
+[cpp] view plaincopy
+// filename: mars_features.h
+#if defined(CFG_DEBUG_SUPPORT) && ((__ON__ == CFG_DEBUG_SUPPORT) || (__AUTO__ == CFG_DEBUG_SUPPORT))
+#define __DEBUG__
+#endif
+#if defined(CFG_OS_TYPE) && (LINUX == CFG_OS_TYPE)
+#define __LINUX__
+#elif defined(CFG_OS_TYPE) && (AIX == CFG_OS_TYPE)
+#define __AIX__
+#elif defined(CFG_OS_TYPE) && (UNIX == CFG_OS_TYPE)
+#define __UNIX__
+#endif /*CFG_OS_TYPE*/
+[cpp] view plaincopy
+// filename: mars_features.h  
+  
+#if defined(CFG_DEBUG_SUPPORT) && ((__ON__ == CFG_DEBUG_SUPPORT) || (__AUTO__ == CFG_DEBUG_SUPPORT))  
+    #define __DEBUG__  
+#endif  
+  
+#if defined(CFG_OS_TYPE) && (LINUX == CFG_OS_TYPE)  
+    #define __LINUX__  
+#elif defined(CFG_OS_TYPE) && (AIX == CFG_OS_TYPE)  
+    #define __AIX__  
+#elif defined(CFG_OS_TYPE) && (UNIX == CFG_OS_TYPE)  
+    #define __UNIX__  
+#endif /*CFG_OS_TYPE*/  
+3. 宏的使用
+
+[cpp] view plaincopy
+int main(int argc, const char *argv[])
+{
+#if defined(__LINUX__)
+fprintf(stdout, "OS is linux!");
+#elif defined(__AIX__)
+fprintf(stdout, "OS is aix!");
+#elif defined(__UNIX__)
+fprintf(stdout, "OS is unix!");
+#endif /*__LINUX__*/
+}
+[cpp] view plaincopy
+int main(int argc, const char *argv[])  
+{  
+#if defined(__LINUX__)  
+    fprintf(stdout, "OS is linux!");  
+#elif defined(__AIX__)  
+    fprintf(stdout, "OS is aix!");  
+#elif defined(__UNIX__)  
+    fprintf(stdout, "OS is unix!");  
+#endif /*__LINUX__*/  
+}  
+三、宏开关的使用
+
+通过以上方法的组织，当我们需要开启、关闭某一指定的功能宏时，我们便可轻松决定某个功能的开启和关闭了。例如：
+
+①、关闭__DEBUG__
+
+1. Makefile：将DEBUG_SUPPORT = FALSE
+
+2. 头文件：将CFG_DEBUG_SUPPORT = __OFF__
+
+②、开启__UNIX__
+
+1. Makefile：将OS_TYPE = UNIX
+
+2. 头文件：将CFG_OS_TYPE = UNIX

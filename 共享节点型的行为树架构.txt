@@ -1,0 +1,250 @@
+我在博客上已经聊了很多关于行为树的基本概念了，我也实现了一个简单的行为树库供大家参考，在实践中，我一直没有考虑过行为树对于内存占用的问题，因为在我上一个足球的项目里，场上一共就是10个人，内存的使用相较于其他模块而言，实在是微乎其微。但如果对于存在大量NPC的游戏来说，每一个NPC都生成一个完整的行为树实例，那内存的占用量就显得很可观了，特别是对于网络程序的服务器端，或者对于移动设备上的游戏来说，内存的优化，是不得不考虑的问题，所以这就有必要来重新思考一下优化行为树内存占用的策略。
+
+前段时间在aigamedev上看到一篇介绍行为树的视频里，提到了一种共享节点型的行为树的概念，可以改善内存的使用情况，在这里，和大家一起分享和探讨一下。
+
+在原本的行为树架构里，我们提到的一个最终要的概念就是“节点”，不论是“控制节点”，还是“行为节点”，从代码层面上来说，都是继承自“节点”，换句话说，就是节点的一种。行为树就是由这些节点所组成的，在实践中，每一个节点其实包含了两种数据，一个是构成行为树结构的数据（Structure Data），比如子节点指针，父节点指针，通用数据等等，这些数据用来搭建出行为树。还有一种数据是运行时数据（Runtime Data），是运行时会变化的，比如一些计数器，游戏相关数据等等。假设我们有行为树A，它会被附加在100个NPC上，按照原来的架构，我们会复制100份A的实例分别给这100个NPC。如果仔细分析的话，因为他们用的是同一种行为树结构，所以构成行为树结构的数据在这100个A的实例中是一模一样！由此我们就可以想到，其实，所有的这100个A的实例中只需要共享一个份结构数据就可以了，这样就可以节省很多的内存消耗，如下图所示：
+
+
+
+这样的行为树架构就被称为“共享性节点的行为树”，它把原本的“节点”分成三个部分：
+
+节点（Node）：和原来的节点概念有所不同，这个节点仅包含结构性数据，在所有的行为树实例中共享。并且负责创建该节点所能执行的任务。比如一个带选择功能的控制节点，就会产生一个带选择逻辑的任务。
+任务（Task）：保存运行时特有的数据，并执行逻辑
+行为（Behaivor）：保存由当前节点做创建的任务，并更新任务的状态
+可能用文字叙述的话，大家对上面的概念还不是很好理解，我还是直接给大家看一下相关的代码
+
+ 1: class Node
+ 2: {
+ 3: public
+ 4:     ...
+ 5:     virtual Task* CreateTask() = 0;
+ 6:     virtual void DestroyTask(Task* pTask) = 0;
+ 7:     ...
+ 8: protected:
+ 9:     Node* m_pParent;
+ 10: };
+可以看到在节点中，我们有两个方法，一个是CreateTask，一个是DestroyTask，前者用来创建一个任务，后者用来销毁一个任务，作为结构性数据的m_pParent也存在Node这个类中。有了这个Node类，我们就可以创建一个带子节点功能的Node类，称之为CompositeNode
+
+ 1: typedef std::vector<Node*> Nodes;
+ 2:
+ 3: class CompositeNode : public Node
+ 4: {
+ 5: public:
+ 6:     Node* GetChild(int idx)；
+ 7:     void AddChild(Node* node)；
+ 8:     int GetChildCount() const；
+ 9: protected:
+ 10:     Nodes m_Children;
+ 11: };
+子节点也是结构性数据的一部分，所以也作为成员变量存在CompositeNode的类中，这样有了这个类，我们就可以搭建出一棵树状的结构了，不过这些Node类都是基类，因为我们并没有实现创建任务和销毁任务的方法，这个稍后会提到，下面我们来看一下Task类
+
+ 1: class Task
+ 2: {
+ 3:     public:
+ 4:         Task(Node* pNode):m_pNode(pNode){}
+ 5:         virtual ~Task(){};
+ 6:         virtual void             OnInit(
+ 7:             const BevNodeInputParam& inputParam) = 0;
+ 8:         virtual BevRunningStatus OnUpdate(
+ 9:             const BevNodeInputParam& inputParam,
+ 10:             BevNodeOutputParam& outputParam) = 0;
+ 11:         virtual void             OnTerminate(
+ 12:             const BevNodeInputParam& inputParam) = 0;
+ 13:     protected:
+ 14:         Node* m_pNode;
+ 15: };
+Task类是用来执行具体逻辑的，所以它包含了三个最基本的控制方法，一个是初始化（OnInit），一个是每帧的更新（OnUpdate），最后一个是销毁（OnTerminate），概念上也是很好理解的。
+
+比较以前行为树的实现，和现在的实现就可以发现，以前的行为树中，我们一个Node类，即包含了结构性的数据，比如子节点，父节点等等，也包含了逻辑信息，运行时信息，现在，根据共享节点型行为树的概念，我们把它们一份为二了，将结构性信息都放到了新的Node类中，将逻辑和运行时信息都放到Task类中。那如何把这两个部分结合起来呢，这就要用到前面提到的新的“行为（Behavior）”类了
+
+ 1: class Behavior
+ 2: {
+ 3:     public:
+ 4:         ...
+ 5:         void Install(Node& node)
+ 6:         {
+ 7:             Uninstall();
+ 8:
+ 9:             m_pNode = &node;
+ 10:             m_pTask = m_pNode->CreateTask();
+ 11:         }
+ 12:         void Uninstall()
+ 13:         {
+ 14:             if(!m_pTask) return;
+ 15:             if(!m_pNode) return;
+ 16:             m_pNode->DestroyTask(m_pTask);
+ 17:             m_pTask = NULL;
+ 18:             m_eStatus = k_BRS_Invalid;
+ 19:         }
+ 20:         BevRunningStatus Update(
+ 21:                     const BevNodeInputParam& inputParam,
+ 22:                     BevNodeOutputParam& outputParam)
+ 23:         {
+ 24:             if(m_eStatus == k_BRS_Invalid)
+ 25:                 m_pTask->OnInit(inputParam);
+ 26:             BevRunningStatus ret = m_pTask->OnUpdate(inputParam, outputParam);
+ 27:             if(ret != k_BRS_Executing)
+ 28:             {
+ 29:                 m_pTask->OnTerminate(inputParam);
+ 30:                 m_eStatus = k_BRS_Invalid;
+ 31:             }
+ 32:             else
+ 33:             {
+ 34:                 m_eStatus = ret;
+ 35:             }
+ 36:             return ret;
+ 37:         }
+ 38:     private:
+ 39:         Node* m_pNode;
+ 40:         Task* m_pTask;
+ 41:         BevRunningStatus m_eStatus;
+ 42:     };
+行为类中Install函数可谓是这种行为树架构的核心部分，他在用给定的节点创建了一个相应的任务任务实例，然后在后续的Update函数中更新这个任务的实例。Install函数的重要之处在于，节点是作为参数传入的！！这样我们就可以用同一个节点指针（相当于行为树结构的根节点指针），创建多个的任务实例，而且该节点上绑定的是何种任务，完全是由节点所决定的！这样就保证了，同一个行为树结构产生的一定是同一种行为树的逻辑。是不是很赞?:)
+
+以上就是共享节点型行为树的一个概念，至于选择，序列，并行等节点如何实现，我会在下一篇文章里说明。下面的连接是同一个示例程序（单击鼠标可以添加10个智能体），但是是用两种行为树来实现，看看当加到200个智能体的时候，所占用内存的区别(因为原本的行为树实现方式中，有一些不必要的数据，所以并不是十分精确，但可以说明一定的问题)。具体代码，我会在下一篇文章中给出下载链接。
+
+示例程序下载
+
+
+
+
+
+
+
+
+
+
+
+共享节点型的行为树架构（2）
+2012年7月28日 | 标签: Behavior, Behavior Tree, next-gen AI, 行为, 行为树
+上次聊到了共享节点型行为树的基本概念和节点组成，简单的来说，这种行为树就是把构成树的结构性数据，和运行时数据分开了，将结构性数据在多个行为树中共享，这样当存在大量的智能体的时候，内存的使用会减少很多。
+
+在上次的文章里，提到了行为（Behavior），节点（Node），任务（Task）的概念和实现方法，这里再回顾一下这三个概念的内容
+
+节点（Node）：和原来的节点概念有所不同，这个节点仅包含结构性数据，在所有的行为树实例中共享。并且负责创建该节点所能执行的任务。比如一个带选择功能的控制节点，就会产生一个带选择逻辑的任务。
+任务（Task）：保存运行时特有的数据，并执行逻辑
+行为（Behaivor）：保存由当前节点做创建的任务，并更新任务的状态
+有了这样的基本节点，我们就可以将其他的控制节点来实现出来，我还是会实现三种基本的控制节点：选择，序列和并行，由于这三种节点都不是叶节点，并且在Node的实现中，可以看到，我们并没有保留用于保存子节点的成员变量，所以，我们首先需要创建一个带子节点的Node类，称之为组合节点（Composite Node）
+
+ 1: typedef std::vector<Node*> Nodes;
+ 2: class CompositeNode : public Node
+ 3: {
+ 4:     public:
+ 5:         ...
+ 6:         Node* GetChild(int idx);
+ 7:         void AddChild(Node* node);
+ 8:         int GetChildCount() const;
+ 9:     protected:
+ 10:         Nodes m_Children;
+ 11: };
+这个类很简单，就提供了一个子节点的成员变量，并包含一些访问接口，下面我们来看看如何来做一个选择节点，我们需要做两个部分，一个是选择节点（Select Node），一个是选择任务（Select Task），选择节点用来生成选择任务，这个是共享节点型行为树的基本概念，后面就不再赘述了。
+
+ 1: class SelectorTask : public Task
+ 2: {
+ 3: public:
+ 4:     SelectorTask(Node* pNode)
+ 5:         : Task(pNode)
+ 6:         , m_LastBehavior(-1)
+ 7:     {}
+ 8:     CompositeNode& GetCompositeNode(){
+ 9:         return *dynamic_cast<CompositeNode*>(m_pNode);
+ 10:     }
+ 11:     virtual void OnInit(const BevNodeInputParam& inputParam)
+ 12:     {}
+ 13:     virtual BevRunningStatus OnUpdate(const BevNodeInputParam& inputParam, BevNodeOutputParam& outputParam)
+ 14:     {
+ 15:         CompositeNode& comNode = GetCompositeNode();
+ 16:         if(comNode.GetChildCount() == 0)
+ 17:             return k_BRS_Failure;
+ 18:
+ 19:         if(!m_CurrentBehavior.HasInstalled())
+ 20:         {
+ 21:             m_LastBehavior = 0;
+ 22:             m_CurrentBehavior.Install(*(comNode.GetChild(m_LastBehavior)));
+ 23:         }
+ 24:         BevRunningStatus status = m_CurrentBehavior.Update(inputParam, outputParam);
+ 25:         if(status != k_BRS_Failure)
+ 26:         {
+ 27:             return status;
+ 28:         }
+ 29:         for(int i = 0; i < comNode.GetChildCount(); ++i)
+ 30:         {
+ 31:             if(m_LastBehavior == i)
+ 32:                 continue;
+ 33:
+ 34:             m_CurrentBehavior.Install(*(comNode.GetChild(i)));
+ 35:             BevRunningStatus status = m_CurrentBehavior.Update(inputParam, outputParam);
+ 36:             if(status != k_BRS_Failure)
+ 37:             {
+ 38:                 m_LastBehavior = i;
+ 39:                 return status;
+ 40:             }
+ 41:         }
+ 42:         return k_BRS_Failure;;
+ 43:     }
+ 44:     virtual void OnTerminate(const BevNodeInputParam& inputParam)
+ 45:     {
+ 46:         m_LastBehavior = -1;
+ 47:         m_CurrentBehavior.Uninstall();
+ 48:     };
+ 49:
+ 50: private:
+ 51:     int             m_LastBehavior;
+ 52:     Behavior m_CurrentBehavior;
+ 53: };
+ 54: class CompositeNode_Selector : public CompositeNode
+ 55: {
+ 56: public:
+ 57:     virtual Task* CreateTask()
+ 58:     {
+ 59:         return new SelectorTask(this);
+ 60:     }
+ 61:     virtual void DestroyTask(Task* pTask)
+ 62:     {
+ 63:         SelectorTask* pTest = dynamic_cast<SelectorTask*>(pTask);
+ 64:         D_CHECK(pTest);
+ 65:         D_SafeDelete(pTest);
+ 66:     }
+ 67: };
+从上面的代码中，可以看到，这是一个带优先级的选择节点，因为我们每次都是从第一个子节点开始寻找可运行的节点，当找到后，就中断寻找的过程，和上一个版本不同的是，在现在这个版本的实现中，我们并没有引入“前提”的概念，而是通过在Update的返回值来确定当前节点是否可以运行，这样的话，我们需要在行为节点的Update中实现对于“前提”的检查，并返回正确的返回值。
+
+序列和并行的实现方法大同小异，只要了解了这些节点的基本概念，就可以很容易的写出相关的代码。大家可以在文章的最后找到下载链接，我也强烈建议大家自己实现一下，以加深理解。
+
+另外，我们在实现每一个Task类的时候，都需要一个相应的Node类来生成这个Task，而这些Node类的结构基本是一样的，所以我为此专门定义了一个宏来生成这个Node类（不过使用起来，还不是很方便，有改进的余地）
+
+ 1: #define DEF_TERMINATE_NODE(name, task) \
+ 2:     class Node##_##name : public Node {\
+ 3:     public:\
+ 4:         virtual Task* CreateTask(){\
+ 5:             return new task(this);\
+ 6:         }\
+ 7:         virtual void DestroyTask(Task* pTask){ \
+ 8:             task* pTest = dynamic_cast<task*>(pTask);\
+ 9:             D_CHECK(pTest);\
+ 10:             D_SafeDelete(pTest);    \
+ 11:         };\
+ 12:     };
+ 13:
+ 14: #define CREATE_TERMINATE_NODE(name) new Node##_##name()
+最后我用新的行为树重写了那些行为节点（参考这里），实现了同样的功能。从内存的使用量来看，共享节点型行为树，大大减少了内存的消耗，比较适合存在大量的智能体的情况。和原来的行为树实现有一点不同的是，并且特别要注意的是，共享节点型的行为树，在运行过程中，会不断的创建和销毁执行完毕的Task（对于不可运行的Task，它也会先创建，然后Update一下，再销毁），所以就会存在大量的小内存的分配和释放，如果没有很好的内存管理机制，这样的分配和释放，会造成大量的内存碎片，在我的程序中，我并没有做内存的部分，但如果要使用这样的行为树模式在实际的开发中的话，必须要在内存的管理上做一些额外的工作，比如使用内存池，小内存表等等。
+
+下载地址：
+
+GoogleCode下载点（exe文件夹中已包含可执行文件）
+
+也可用svn通过以下地址来得：
+
+http://tsiu.googlecode.com/svn/branches/blogver/
+
+编译方法：
+
+用VS2005以上打开，选择Debug NoDx或者Release NoDx，将BTTInit2.cpp以及TAI_BevTree.cpp加入编译（方法：在此文件上右键-属性-在编译中排出，选否），将BTTInit3.cpp移除编译（方法：在此文件上右键-属性-在编译中排出，选是），这样编译后就会得到由原本的行为树版本所作的示例程序，反之，编译后就是用新的行为树版本做的示例程序
+
+相关代码：
+
+TAI_BevTree2.h
+
+关于TsiU
+
+TsiU是我一直在维护的一个自己用的小型的框架，我平时做的一些AI的sample，或者一些工具，都会基于这个框架，TsiU有一些基本的UI控件库，网络模块库，GDI绘图模块，D3D绘图模块等等，可以快速的做成一个小型的示例程序，很方便（具体可参考SampleAppｓ里的例子程序），并且整个架构是用Object的方式来组织，非常容易理解和扩展。整个框架很轻量化，基本就是做了一些底层的基本的功能，这样我在平时做东西的时候，就不需要重新写底层了，把精力都放在高层的实现了。以后分享代码都会基于这个框架，大家也可以通过svn来随时update到我最新的改动。下图就是TsiU里的几个工程介绍，代码不多，大家想看的也可以自己看一下:)
+

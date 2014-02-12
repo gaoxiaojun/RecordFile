@@ -1,0 +1,604 @@
+下列程序定义了Stack(堆栈)的类模板,
+问题:
+1:不能将类模板的定义与实现分开写,如果将tstack1.h中类模板的定义与其函数的实现分开         写,tstack1.h中只包含类模板的定义,在tstack1.cpp中包含类模板中函数的实现,在编译时没错,但是连接错.为什么.
+2:不能单步调试，按F10不起作用,它直接显示的是汇编代码,开发环境VC6.0+WINDOWSXP
+#include<iostream.h>
+#include"tstack1.h"
+
+void main()
+{
+Stack< double > doubleStack( 5 );
+double f = 1.1;
+cout << "Pushing elements onto doubleStack\n";
+
+while( doubleStack.push( f ) )
+{
+f += 1.1;
+}
+
+cout << "\nStack is full. Cannot push " << f
+     << "\n\nPopping elements from doubleStack\n";
+
+while( doubleStack.pop( f ) )
+{
+}
+
+cout << "\nStack is empty. Cannot pop\n";
+
+Stack< int > intStack;
+int i = 1;
+cout << "\nPushing elements onto intStack\n";
+
+while( intStack.push( i ) )
+{
+++i;
+}
+
+cout << "\nStack is full. Cannot push " << i
+     << "\n\nPopping elements from intStack\n";
+
+while( intStack.pop( i ) )
+{
+}
+
+cout << "\nStack is empty. Cannot pop\n";
+}
+分享到：  
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理 回复次数：17
+
+songsong33
+慢慢来还不行么
+等级：
+#1 得分：0 回复于： 2005-06-26 21:22:50
+没碰到过，帮顶
+CSDN论坛第二批版块调整公告对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+sunman1982
+sunman1982
+等级：
+#2 得分：0 回复于： 2005-06-26 22:03:35
+函数载类中定义的时候要有相应的代码，你把你的代码发全了。
+比如继承的时候函数要有相应的定义或者定义成虚函数。
+华为云计算有奖问答活动火热进行中对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+dongyi940333
+dongyi940333
+等级：
+#3 得分：0 回复于： 2005-06-29 20:40:43
+星期六我会把tstack1.h的代码发上，不好意思，谢谢
+专访张龙：我的漫漫程序人生路对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+hcj2002
+hcj2002
+等级：
+#4 得分：0 回复于： 2005-06-29 21:31:43
+这可能是VC6.0的问题。vc6对标准C++的支持并不怎么样
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+dongyi940333
+dongyi940333
+等级：
+#5 得分：0 回复于： 2005-07-03 10:20:09
+不好意思，这两本加班，代码发不上来，我说的意思是这样的：
+在C++中我定义一个类比如：
+class a
+{
+private:
+       int a;
+publid:
+
+};
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+newbiestar
+newbiestar
+等级：
+#6 得分：0 回复于： 2005-07-03 10:25:54
+想要分离编译？换编译器先，EDG公司的编译器可以可以支持分离编译了……
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+dongyi940333
+dongyi940333
+等级：
+#7 得分：0 回复于： 2005-07-03 10:27:11
+不好意思上面的代码没有写完，不小心给发了，对不起！
+不好意思，这两本加班，代码发不上来，我说的意思是这样的：
+在C++中我定义一个类比如：
+class a
+{
+private:
+       int a;
+publid:
+       void get();
+};
+我可以把这个类的定义写在dong.h这个文件中，然后在dong.cpp文件中实现类中的函数。比如在dong.cpp文件中写如下代码：
+void a::get()
+{
+cout << "dong";
+}
+这样写是合法的，可以运行。
+但是如果我在dong.h文件中写一个类模板，然后在dong.cpp文件中写上类模板中函数中的实现时，编绎没有报错，但连接报错，为什么？我这二天会把代码传全，我的问题就是这个意思
+
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+dongyi940333
+dongyi940333
+等级：
+#8 得分：0 回复于： 2005-07-03 10:28:05
+我的开发环境是VC6。0+WINDOWSXP
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+newbiestar
+newbiestar
+等级：
+#9 得分：0 回复于： 2005-07-03 10:33:09
+说了是分离编译的问题，目前只有EDG公司出品的编译器（VS2005里面的和g++4不太清楚）可以支持分离编译，VC++6里面的和VS2003里面的都无法支持这个特性……
+
+楼主找C++ Templates: The Complete Guide看看，里面介绍的还是比较详细的
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+virm
+virm
+等级：
+#10 得分：0 回复于： 2005-07-03 10:33:38
+class a
+{
+private:
+       int a;
+publid: //?????
+       void get();
+};
+应该是 phblic:
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+virm
+virm
+等级：
+#11 得分：0 回复于： 2005-07-03 10:34:04
+又错了，应该是 public:
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+avalonBBS
+avalonBBS
+等级：
+#12 得分：0 回复于： 2005-07-03 11:37:11
+目前大多数C++编译器都还不支持分离编译模式
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+ericqxg007
+ericqxg007
+等级：
+#13 得分：0 回复于： 2005-07-03 12:15:44
+在VC里面用的话  是不支持分离编译的 我只知道这个
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+dongyi940333
+dongyi940333
+等级：
+#14 得分：0 回复于： 2005-07-03 20:02:40
+如果VC不支持分离编译的话，那么为什么将类的定义和其函数的实现放在两个不同的文件中可以编译通过，并正确运行，没有错误，我做程序是将类的定义放在。H文件中，然后将类中函数的实现放在相应的。CPP文件中的。这种方法是在《C++大学教程》第二版这本书上学的。
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+newbiestar
+newbiestar
+等级：
+#15 得分：0 回复于： 2005-07-03 20:12:08
+class和class template根本就不是一样的东西，你先去搞明白template的意义再来提问吧，根据你现在提出的问题，可以看出你根本没有明白template到底是什么
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+runner001_cn
+runner001_cn
+等级：
+#16 得分：0 回复于： 2005-07-03 23:38:45
+在vc6里，你的Stack的实现与定义必须写一个文件里，我以前也碰到过这个问题，ms的网站上有说明，具体地址我搞丢了，你可以查查
+对我有用[0] 丢个板砖[0] 引用 | 举报 | 管理
+
+dongyi940333
+dongyi940333
+等级：
+#17 得分：0 回复于： 2005-07-05 22:09:58
+这是我用百度搜索得到的,大家看一下,但是我不理解评论是什么意思:要在实现中的模板函数之前加上export就可以避免你说的链接错误?
+
+注意c/c++模板的定义和实现- -
+                                       
+定义一个类一般都是在头文件中进行类声明，在cpp文件中实现，但使用模板时应注意目前的C++编译器还无法分离编译，最好将实现代码和声明代码均放在头文件中。如：
+
+test.h
+
+template<class T>class CTest{ public:    T& GetValue();    void SetValue(const T& _Value);protected:    T m_Value; };
+
+test.cpp
+
+template<class T>T& CTest<T>::GetValue(){     return m_Value; }template<class T>void CTest<T>::SetValue(const T& _Value){     m_Value = _Value; }
+
+在这儿test.cpp中的内容应放在test.h中，否则在生成最终可执行程序时就会出现错误(在链接时会出错)。因为在编译时模板并不能生成真正的二进制代码，而是在编译调用模板类或函数的CPP文件时才会去找对应的模板声明和实现，在这种情况下编译器是不知道实现模板类或函数的CPP文件的存在，所以它只能找到模板类或函数的声明而找不到实现，而只好创建一个符号寄希望于链接程序找地址。但模板类或函数的实现并不能被编译成二进制代码，结果链接程序找不到地址只好报错了。
+
+《C++编程思想》第15章(第300页)说明了原因：模板定义很特殊。由template<…>处理的任何东西都意味着编译器在当时不为它分配存储空间，它一直处于等待状态直到被一个模板实例告知。在编译器和连接器的某一处，有一机制能去掉指定模板的多重定义。所以为了容易使用，几乎总是在头文件中放置全部的模板声明和定义。
+
+沈公子在 2005年2月15日11:19星期二 评论: 
+你说的有误，要将实现代码放在cpp文件中，否则编译时所有包含头文件的单元都要额外的编译时间。
+只要在实现中的模板函数之前加上export就可以避免你说的链接错误，这是STL编程时的技巧之一。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ c++ 模板<template class T> 2012-05-20 11:53:34
+分类： C/C++
+
+在c++中有如下语句 
+ int a; 
+ char b; 
+ long c; 
+ float d; 
+ 像上面的 int, char, long, float 被称为“类型”。 
+ 有时需要将“类型”也做为参数来处理，比如，要写一个比较大小的函数 comp(x,y) 
+ 如果是两个int型比较就返回一个int类型的值，如果是两个float型比较就返加一个float型结果，当然可以用函数重载来实现，但利用函数模板就只要写一个函数 
+ template<class T> 
+ T  comp(T x,T y) 
+ { 
+ 	return x>y?x:y;
+ } 
+ 其中template<class T>就是声明将T作为一个类型参数 和以下重载的函数比较一下
+ int comp(int x,int y)
+ {
+ 	return x>y?x:y;
+ }
+ float comp(float x,float y) 
+ { 
+ 	return x>y?x:y;
+ } 
+ 简单的说， 模板 就是一个函数或类模板可以解决不同类型的问题
+
+
+#include "stdafx.h"
+#include<iostream>
+#include <conio.h> 
+#include<string.h>
+using namespace std;
+template <class T> 
+T s(T i,T j)
+{
+T a;
+a=i;
+i=j;
+j=a;
+return a ;
+}
+
+int _tmain(int argc, _TCHAR* argv[])
+{
+
+    int i=1,j=2;
+cout<<i<<"-"<<j<<endl;
+s(i,j);
+cout<<i<<"-"<<j<<endl;
+char c='a',h='b';
+cout<<c<<"-"<<h<<endl;
+    s(c,h);
+cout<<c<<"-"<<h<<endl;
+
+return 0;
+}
+
+////////////////////////////////////////////////////////////////
+
+C++ 模板基础谈
+
+1. 什么是模板
+
+模板定义：模板就是实现代码重用机制的一种工具，它可以实现类型参数化，即把类型定义为参数，从而实现了真正的代码可重用性。
+
+我们知道，C++ 是一种“强类型”的语言，也就是说一个变量，编译器必须确切的知道它的类型，而模板就是构建在这个强类型语言基础上的泛型系统。
+
+2. 模板的语法
+
+模板函数
+
+template < typename {类型参数名称}, [ int {Name}=...][, ...] >
+
+{函数定义}
+
+模板类
+
+template < typename ... , [ int {Name}=...] >
+
+class ...
+
+模板的参数可以是类型，或者是一个 int 型的值（或者可以转换为int 型的，比如 bool）。
+
+3. 模板的使用
+
+显式类型参数：对于模板函数，在函数名后添加 < {类型参数表} >。对于模板类，在类后添加 < {类型参数表} >
+
+隐式类型参数：对于模板函数，如果类型参数可以推导，那么可以省略类型参数表
+
+举个例子:
+
+template < typename T >
+
+T max( T a, T b )
+
+{
+
+return a < b ? b : a;
+
+}
+
+这个 max 函数就是一个模板函数，它可以传入一个 “类型”的参数，以便实现任意类型求最大值的效果。假设我们这样使用它：
+
+int x=5, y=10;
+
+int z=max <int>( x, y );
+
+这时候发生了什么呢？我们传入的“类型参数”是int，因此编译器在编译这段代码时会使用 int 来构造一个新函数：
+
+int max( int a, int b )
+
+{
+
+return a < b ? b : a;
+
+}
+
+后面的事就和编译普通的函数一样了，C++编译器继续使用强类型系统编译这个函数，由强类型系统来检查这个函数是否正确。
+
+这个过程叫做模板的“特化”，它发生在编译期，当编译器发现模板函数、模板类被使用（注意，不是定义）的时候进行的。这个系统实际上比较像宏，但是比宏更为智能。
+
+很明显，编译器必须知道模板如何特化这个函数，因此模板函数的实现，必须在“使用点”之前，因此模板库只能通过头文件库的形式来提供。
+
+4. 模板的类型推导
+
+对于函数，编译器是知道传入参数的类型的，比如上面的max，max < ? >( x, y )，由于第一个参数 x 是 int 类型的，那么 ? 这里需要填写什么呢？
+
+我们可以很明显的推断出应该是 "int"，否则，后面的强类型系统将无法编译这个函数。编译器同样知道 x 的类型，因此它也能推导出“类型参数”，这时候我们调用时就可省略模板参数了。
+
+这个推导是按顺序来的，因此如果上面的 y 是其他类型，? 仍然会被推导为 int，如果y无法隐性转换为int，强类型编译时就会报错。
+
+5. 类型推导的隐式类型转换
+
+在决定模板参数类型前，编译器执行下列隐式类型转换：
+
+左值变换
+
+修饰字转换
+
+派生类到基类的转换
+
+见《C++ Primer》（[注2]，P500）对此主题的完备讨论。
+
+简而言之，编译器削弱了某些类型属性，例如我们例子中的引用类型的左值属性。举例来说，编译器用值类型实例化函数模板，而不是用相应的引用类型。
+
+同样地，它用指针类型实例化函数模板，而不是相应的数组类型。
+
+它去除const修饰，绝不会用const类型实例化函数模板，总是用相应的非 const类型，不过对于指针来说，指针和 const 指针是不同的类型。
+
+底线是：自动模板参数推导包含类型转换，并且在编译器自动决定模板参数时某些类型属性将丢失。这些类型属性可以在使用显式函数模板参数申明时得以保留。
+
+6. 模板的偏特化
+
+如果我们打算给模板函数（类）的某个特定类型写一个函数，就需要用到模板的偏特化，比如我们打算用 long 类型调用 max 的时候，返回小的值（原谅我举了不恰当的例子）：
+
+template <> // 这代表了下面是一个模板函数
+
+long max <long>( long a, long b ) // 对于 vc 来说，这里的 <long> 是可以省略的
+
+{
+
+return a > b ? b : a;
+
+}
+
+实际上，所谓偏特化，就是代替编译器完成了对指定类型的特化工作，现代的模板库中，大量的使用了这个技巧。
+
+7. 仿函数
+
+仿函数这个词经常会出现在模板库里（比如 STL），那么什么是仿函数呢？
+
+顾名思义：仿函数就是能像函数一样工作的东西，请原谅我用东西这样一个代词，下面我会慢慢解释。
+
+void dosome( int i )
+
+这个 dosome 是一个函数，我们可以这样来使用它： dosome(5);
+
+那么，有什么东西可以像这样工作么？
+
+答案1：重载了 () 操作符的对象，比如：
+
+struct DoSome
+
+{
+
+void operator()( int i );
+
+}
+
+DoSome dosome;
+
+这里类(对 C++ 来说，struct 和类是相同的) 重载了 () 操作符，因此它的实例 dosome 可以这样用 dosome(5); 和上面的函数调用一模一样，不是么？所以 dosome 就是一个仿函数了。
+
+实际上还有答案2：
+
+函数指针指向的对象。
+
+typedef void( *DoSomePtr )( int );
+
+typedef void( DoSome )( int );
+
+DoSomePtr *ptr=&func;
+
+DoSome& dosome=*ptr;
+
+dosome(5); // 这里又和函数调用一模一样了。
+
+当然，答案3 成员函数指针指向的成员函数就是意料之中的答案了。
+
+8. 仿函数的用处
+
+不管是对象还是函数指针等等，它们都是可以被作为参数传递，或者被作为变量保存的。因此我们就可以把一个仿函数传递给一个函数，由这个函数根据需要来调用这个仿函数（有点类似回调）。
+
+STL 模板库中，大量使用了这种技巧，来实现库的“灵活”。
+
+比如：
+
+for_each, 它的源代码大致如下：
+
+template < typename Iterator, typename Functor >
+
+void for_each( Iterator begin, Iterator end, Fucntor func )
+
+{
+
+for( ; begin!=end; begin++ )
+
+func( *begin );
+
+}
+
+这个 for 循环遍历了容器中的每一个元素，对每个元素调用了仿函数 func，这样就实现了 对“每个元素做同样的事”这样一种编程的思想。
+
+特别的，如果仿函数是一个对象，这个对象是可以有成员变量的，这就让 仿函数有了“状态”，从而实现了更高的灵活性。
+
+我的一点点理解：关于类之间的模板值传递
+
+先贴一段程序，vs2008，编译通过：
+
+#include <iostream>
+
+using namespace std;
+
+template <class T>
+
+class classOne{
+
+private:
+
+T a;
+
+public:
+
+T getA(T b){
+
+   a=b;
+
+   return a;
+
+}
+
+};
+
+template <class T>
+
+class classTwo{
+
+private:
+
+classOne<T> test;
+
+public:
+
+T out(T b){
+
+   return test.getA(b);
+
+}
+
+};
+
+int main(){
+
+classTwo<int> test2;
+
+cout<<test2.out(3)<<endl;
+
+return 0;
+
+}
+
+将classOne定义为模板类，我原来一直搞不清楚classTwo如何传递模板值给它，其实和一般传值是一样的了，但似乎网上的教程都没有说，或许是太简单了，只是我理解不透没想到。恩，不作解释了，是在看不懂的，留言回答
+
+当然这里还有一个弱点，就是在访问classTwo中访问classOne实例的a属性时，由于是私有属性，所以在classTwo中不能直接test.a，访问，解决这个问题，用友元类。
+
+#include <iostream>
+
+using namespace std;
+
+template <class T>
+
+class classOne{
+
+friend classTwo<T>;
+
+private:
+
+T a;
+
+public:
+
+T getA(T b){
+
+   a=b;
+
+   return a;
+
+}
+
+};
+
+template <class T>
+
+class classTwo{
+
+private:
+
+classOne<T> test;
+
+public:
+
+T out(T b){
+
+   test.a=b;
+
+   return test.a;
+
+}
+
+};
+
+int main(){
+
+classTwo<int> test2;
+
+cout<<test2.out(3)<<endl;
+
+return 0;
+
+}
+
+但还是报错。原因在于先声明友元类。在classOne上面如此声明就可以了。
+
+template <class T>
+
+class classTwo;
+
+模板stack 堆栈实现：http://hi.baidu.com/%B4%E5%E6%DE/blog/item/44318981e11ebbde9123d9e5.html
+
+模板queue循环队列现：http://hi.baidu.com/%B4%E5%E6%DE/blog/item/bf79efaebdf814c57cd92ae4.html
+
+模板 单链表 循环链表 双向链表 实现：http://hi.baidu.com/%B4%E5%E6%DE/blog/item/204876fbc421ef809f514622.html
+
+
+
+

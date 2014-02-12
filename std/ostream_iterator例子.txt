@@ -1,0 +1,42 @@
+using namespace std; int main()
+{
+vector<int> vect;
+for ( int i = 1; i < 10;i++)
+{
+   vect.push_back(i); 
+}
+copy(vect.begin(),vect.end(),ostream_iterator<int>(cout, " "));
+ostream_iterator<double>os_iter(cout, " ~ ");
+*os_iter = 1.0;
+os_iter++;
+*os_iter = 2.0;
+*os_iter = 3.0;
+}
+输出：
+1 2 3 4 5 6 7 8 9 1 ~ 2 ~ 3 ~
+很明显，ostream_iterator 的作用就是允许对 stream 做 iterator 的操作，从而让算法可以施加于 stream 之上，
+这也是 STL 的精华。与前面的“读取文件”相结合，我们得到了显示一个文件最方便的办法：
+copy(istreambuf_iterator(ifs.rdbuf()),istreambuf_iterator(),ostreambuf_iterator(cout));
+同样，如果你用下面的语句，得到的会是没有分隔符的输出：
+copy(istream_iterator(ifs),istream_iterator(),ostream_iterator(cout));
+那多半不是你要的结果。如果你硬是想用 istream_iterator 而不是 istreambuf_iterator 呢？还是有办法：
+copy(istream_iterator(ifs >> noskipws),istream_iterator(),ostream_iterator(cout));
+但是这样不是推荐方法，它的效率比第一种低不少。
+如果一个文件 temp.txt 的内容是下面这样，那么我的这个从文件中把数据读入 vector 的方法应该会让你印象深刻。
+12345 234 567
+89    10
+程序：
+int main() 
+{
+ifstream ifs("test.txt");
+if (!ifs)
+{
+   cout << "file is not find";
+}
+istream_iterator<string> ibeg(ifs);
+istream_iterator<string> iend;
+vector<string> vec(ibeg, iend);
+copy(vec.begin(), vec.end(), ostream_iterator<string>(cout, "\n"));
+}
+输出：12345 234 567 89 10
+很酷不是么？判断文件结束、移动文件指针之类的苦工都有 istream_iterator 代劳了。

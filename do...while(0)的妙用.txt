@@ -1,0 +1,322 @@
+在C++中，有三种类型的循环语句：for, while, 和do...while， 但是在一般应用中作循环时， 我们可能用for和while要多一些，do...while相对不受重视。
+    但是，最近在读我们项目的代码时，却发现了do...while的一些十分聪明的用法，不是用来做循环，而是用作其他来提高代码的健壮性。
+1. do...while(0)消除goto语句。
+通常，如果在一个函数中开始要分配一些资源，然后在中途执行过程中如果遇到错误则退出函数，当然，退出前先释放资源，我们的代码可能是这样：
+version 1
+bool Execute()
+{
+   // 分配资源
+   int *p = new int;
+   bool bOk(true);
+
+   // 执行并进行错误处理
+   bOk = func1();
+   if(!bOk) 
+   {
+      delete p;   
+      p = NULL;
+      return false;
+   }
+
+   bOk = func2();
+   if(!bOk) 
+   {
+      delete p;   
+      p = NULL;
+      return false;
+   }
+
+   bOk = func3();
+   if(!bOk) 
+   {
+      delete p;   
+      p = NULL;
+      return false;
+   }
+
+   // ..........
+
+   // 执行成功，释放资源并返回
+    delete p;   
+    p = NULL;
+    return true;
+   
+}
+
+
+这里一个最大的问题就是代码的冗余，而且我每增加一个操作，就需要做相应的错误处理，非常不灵活。于是我们想到了goto:
+version 2
+bool Execute()
+{
+   // 分配资源
+   int *p = new int;
+   bool bOk(true);
+
+   // 执行并进行错误处理
+   bOk = func1();
+   if(!bOk) goto errorhandle;
+
+   bOk = func2();
+   if(!bOk) goto errorhandle;
+
+   bOk = func3();
+   if(!bOk) goto errorhandle;
+
+   // ..........
+
+   // 执行成功，释放资源并返回
+    delete p;   
+    p = NULL;
+    return true;
+
+errorhandle:
+    delete p;   
+    p = NULL;
+    return false;
+   
+}
+
+
+代码冗余是消除了，但是我们引入了C++中身份比较微妙的goto语句，虽然正确的使用goto可以大大提高程序的灵活性与简洁性，但太灵活的东西往往是很危险的，它会让我们的程序捉摸不定，那么怎么才能避免使用goto语句，又能消除代码冗余呢，请看do...while(0)循环：
+version3
+bool Execute()
+{
+   // 分配资源
+   int *p = new int;
+
+   bool bOk(true);
+   do
+   {
+      // 执行并进行错误处理
+      bOk = func1();
+      if(!bOk) break;
+
+      bOk = func2();
+      if(!bOk) break;
+
+      bOk = func3();
+      if(!bOk) break;
+
+      // ..........
+
+   }while(0);
+
+    // 释放资源
+    delete p;   
+    p = NULL;
+    return bOk;
+   
+}
+
+
+“漂亮！”， 看代码就行了，啥都不用说了...
+2 宏定义中的do...while(0)
+  如果你是C++程序员，我有理由相信你用过，或者接触过，至少听说过MFC, 在MFC的afx.h文件里面， 你会发现很多宏定义都是用了do...while(0)或do...while(false)， 比如说：
+#define AFXASSUME(cond)       do { bool __afx_condVal=!!(cond); ASSERT(__afx_condVal); __analysis_assume(__afx_condVal); } while(0) 
+粗看我们就会觉得很奇怪，既然循环里面只执行了一次，我要这个看似多余的do...while(0)有什么意义呢？ 
+当然有！
+为了看起来更清晰，这里用一个简单点的宏来演示：
+#define SAFE_DELETE(p) do{ delete p; p = NULL} while(0)
+假设这里去掉do...while(0),
+#define SAFE_DELETE(p) delete p; p = NULL;
+那么以下代码：
+if(NULL != p) SAFE_DELETE(p)
+else   ...do sth...
+就有两个问题，
+1) 因为if分支后有两个语句，else分支没有对应的if，编译失败
+2) 假设没有else, SAFE_DELETE中的第二个语句无论if测试是否通过，会永远执行。
+你可能发现，为了避免这两个问题，我不一定要用这个令人费解的do...while,  我直接用{}括起来就可以了
+#define SAFE_DELETE(p) { delete p; p = NULL;}
+的确，这样的话上面的问题是不存在了，但是我想对于C++程序员来讲，在每个语句后面加分号是一种约定俗成的习惯，这样的话，以下代码:
+if(NULL != p) SAFE_DELETE(p);
+else   ...do sth...
+其else分支就无法通过编译了（原因同上），所以采用do...while(0)是做好的选择了。
+也许你会说，我们代码的习惯是在每个判断后面加上{}, 就不会有这种问题了，也就不需要do...while了，如：
+if(...) 
+{
+}
+else
+{
+}
+诚然，这是一个好的，应该提倡的编程习惯，但一般这样的宏都是作为library的一部分出现的，而对于一个library的作者，他所要做的就是让其库具有通用性，强壮性，因此他不能有任何对库的使用者的假设，如其编码规范，技术水平等。 
+ 
+我最擅长从零开始创造世界，所以从来不怕失败，它最多也就让我一无所有。
+分类: Win32&MFC
+绿色通道： 好文要顶 关注我 收藏该文与我联系 
+至尊王者
+关注 - 0
+粉丝 - 66
++加关注
+4 0
+(请您对文章做出评价)
+? 上一篇：双节棍(C语言版) 
+? 下一篇：Winsock工作模型 ( 转 ) 
+posted @ 2008-01-18 17:00 至尊王者 阅读(25594) 评论(11) 编辑 收藏
+评论列表
+   #1楼 2008-03-25 18:01 aaddcc[未注册用户]
+嘿嘿 不错不错，怪不得老见这样的用法呢
+   #2楼 2008-10-04 09:57 ooseven[未注册用户]
+学习了！感谢作者的分析
+   #3楼 2009-01-05 00:22 angg[未注册用户]
+好 学习了 多谢总结
+   #4楼 2009-02-07 11:41 phoenie[未注册用户]
+分析得挺到位，谢了
+   #5楼 2009-11-20 19:13 mazhuang[未注册用户]
+茅塞顿开！！！
+多谢分享指点。
+   #6楼 2009-12-10 17:43 Jeremiah[未注册用户]
+你写错了ms，应该是这样比较好：
+
+do
+{
+// 执行并进行错误处理
+bOk = func1();
+if(!bOk) break;
+
+bOk = func2();
+if(!bOk) break;
+
+bOk = func3();
+if(!bOk) break;
+
+// // 执行成功，释放资源并返回
+delete p; 
+p = NULL;
+return bOk;
+
+}while(0);
+
+// 出错，释放资源，返回false
+delete p; 
+p = NULL;
+return !bOk;
+   #7楼 2010-09-02 17:37 Dbger  
+忽见我的文章~~~
+呃，转载还是说明一下的好
+
+
+
+
+
+
+
+
+
+
+ do{}while(0)的意义
+2006-06-30 16:35 5802人阅读 评论(3) 收藏 举报
+branchcompilermacrosbasic编译器linux
+csdn's FAQ:
+
+一直以为Linux里面，那些do{}while(0)只是为了程序的源代码看起来比较好看而已  
+今天听说他是有特殊作用的，在线请教，是什么作用？  
+---------------------------------------------------------------  
+ 
+是为了解决使用宏的时候烦人的分号问题。  
+---------------------------------------------------------------  
+ 
+楼说的不是很全面，我给个例子吧  
+ 
+#define  wait_event(wq,condition)  /  
+ 
+do{  if(condition)  break;  __wait_event(wq,condition);  }while(0)  
+ 
+这是一个奇怪的循环，它根本就只会运行一次，为什么不去掉外面的do{..}while结构呢？我曾一度在心里把它叫做“怪圈”。原来这也是非常巧妙的技巧。在工程中可能经常会引起麻烦，而上面的定义能够保证这些麻烦不会出现。下面是解释：  
+ 
+假设有这样一个宏定义  
+ 
+#define  macro(condition)  if(condition)  dosomething();  
+ 
+现在在程序中这样使用这个宏：  
+ 
+if(temp)  
+             macro(i);  
+else  
+             doanotherthing();  
+ 
+一切看起来很正常，但是仔细想想。这个宏会展开成：  
+ 
+if(temp)  
+             if(condition)  dosomething();  
+else    
+             doanotherthing();  
+ 
+这时的else不是与第一个if语句匹配，而是错误的与第二个if语句进行了匹配，编译通过了，但是运行的结果一定是错误的。  
+ 
+为了避免这个错误，我们使用do{….}while(0)  把它包裹起来，成为一个独立的语法单元，从而不会与上下文发生混淆。同时因为绝大多数的编译器都能够识别do{…}while(0)这种无用的循环并进行优化，所以使用这种方法也不会导致程序的性能降低。  
+ 
+---------------------------------------------------------------  
+ 
+可是直接用{}括起来的话，最后的分号会引起麻烦的  
+---------------------------------------------------------------  
+ 
+但这样就一定要在最后加分号，不能当作表达式用了。  
+唉，还是尽量避免用宏替换的方法，太容易出现问题了。
+
+**************************************************************** 
+
+FAQ FROM CSDN:
+
+FAQ/DoWhile0
+Why do a lot of #defines in the kernel use do { ... } while(0)?
+
+There are a couple of reasons:
+
+(from Dave Miller) Empty statements give a warning from the compiler so this is why you see #define FOO do { } while(0).
+
+(from Dave Miller) It gives you a basic block in which to declare local variables.
+
+(from Ben Collins) It allows you to use more complex macros in conditional code. Imagine a macro of several lines of code like:
+
+#define FOO(x) /
+        printf("arg is %s/n", x); /
+        do_something_useful(x);
+Now imagine using it like:
+
+if (blah == 2)
+        FOO(blah);
+This interprets to:
+
+if (blah == 2)
+        printf("arg is %s/n", blah);
+        do_something_useful(blah);;
+As you can see, the if then only encompasses the printf(), and the do_something_useful() call is unconditional (not within the scope of the if), like you wanted it. So, by using a block like do { ... } while(0), you would get this:
+
+if (blah == 2)
+        do {
+                printf("arg is %s/n", blah);
+                do_something_useful(blah);
+        } while (0);
+Which is exactly what you want.
+
+(from Per Persson) As both Miller and Collins point out, you want a block statement so you can have several lines of code and declare local variables. But then the natural thing would be to just use for example:
+
+#define exch(x,y) { int tmp; tmp=x; x=y; y=tmp; }
+However that wouldn't work in some cases. The following code is meant to be an if-statement with two branches:
+
+if (x > y)
+        exch(x,y);          // Branch 1
+else  
+        do_something();     // Branch 2
+But it would be interpreted as an if-statement with only one branch:
+
+if (x > y) {                // Single-branch if-statement!!!
+        int tmp;            // The one and only branch consists
+        tmp = x;            // of the block.
+        x = y;
+        y = tmp;
+}
+;                           // empty statement
+else                        // ERROR!!! "parse error before else"
+        do_something();
+The problem is the semi-colon (;) coming directly after the block. The solution for this is to sandwich the block between do and while (0). Then we have a single statement with the capabilities of a block, but not considered as being a block statement by the compiler. Our if-statement now becomes:
+
+if (x > y)
+        do {
+                int tmp;
+                tmp = x;
+                x = y;
+                y = tmp;
+        } while(0);
+else
+        do_something();
